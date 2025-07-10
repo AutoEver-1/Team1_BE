@@ -5,6 +5,7 @@ import autoever_2st.project.exception.exception_class.business.BusinessException
 import autoever_2st.project.exception.exception_class.business.DataNotFoundException;
 import autoever_2st.project.exception.exception_class.business.ValidationException;
 import autoever_2st.project.exception.exception_class.database.DatabaseException;
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
@@ -12,7 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice
+@Hidden
+@RestControllerAdvice(basePackages = "autoever_2st.project")
 @Slf4j
 public class GlobalExceptionHandler {
 

@@ -10,7 +10,8 @@ public class SwaggerConfig {
 
     @Bean
     public OpenAPI openAPI() {
-        return new OpenAPI();
+        return new OpenAPI()
+                .info(apiInfo());
     }
 
     private Info apiInfo() {

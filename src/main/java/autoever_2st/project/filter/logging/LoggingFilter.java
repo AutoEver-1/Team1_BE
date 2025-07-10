@@ -46,12 +46,21 @@ public class LoggingFilter extends OncePerRequestFilter {
 
             byte[] contentAsByteArray = responseWrapper.getContentAsByteArray();
             if (contentAsByteArray.length > 0) {
-                String responseBody = new String(contentAsByteArray, StandardCharsets.UTF_8).trim();
+                String contentType = responseWrapper.getContentType();
 
-                if (responseBody.length() > MAX_LOG_LENGTH) {
-                    responseData = "response-body : too long, skipped";
+                if (contentType != null && (
+                    contentType.startsWith("image/") || 
+                    contentType.startsWith("audio/") || 
+                    contentType.startsWith("video/") ||
+                    contentType.startsWith("application/octet-stream"))) {
+                    responseData = "response-body : [binary data - " + contentType + "]";
                 } else {
-                    responseData = "response-body : " + responseBody;
+                    String responseBody = new String(contentAsByteArray, StandardCharsets.UTF_8).trim();
+                    if (responseBody.length() > MAX_LOG_LENGTH) {
+                        responseData = "response-body : too long, skipped";
+                    } else {
+                        responseData = "response-body : " + responseBody;
+                    }
                 }
                 responseWrapper.copyBodyToResponse();
             }
