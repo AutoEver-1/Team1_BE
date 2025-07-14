@@ -40,7 +40,7 @@ public class MovieController {
     }
 
     // OTT별 작품 조회
-    @GetMapping("/{ottId}")
+    @GetMapping("/ott/{ottId}")
     public ApiResponse<MovieListResponseDto> getMoviesByOtt(@PathVariable Long ottId) {
         List<MovieDto> movieList = createMockMovieList(5);
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
@@ -49,7 +49,7 @@ public class MovieController {
     }
 
     // 개봉예정작 받기
-    @GetMapping("/{ottId}/expect/release")
+    @GetMapping("/ott/{ottId}/expect/release")
     public ApiResponse<ExpectedReleaseMovieListDto> getExpectedReleaseMovies(@PathVariable Long ottId) {
         List<MovieDto> movieList = createMockMovieList(4);
         ExpectedReleaseMovieListDto responseDto = new ExpectedReleaseMovieListDto(movieList);
@@ -58,7 +58,7 @@ public class MovieController {
     }
 
     // 최근 개봉작 받기
-    @GetMapping("/{ottId}/recently/release")
+    @GetMapping("/ott/{ottId}/recently/release")
     public ApiResponse<RecentlyReleaseMovieListDto> getRecentlyReleaseMovies(@PathVariable Long ottId) {
         List<MovieDto> movieList = createMockMovieList(4);
         RecentlyReleaseMovieListDto responseDto = new RecentlyReleaseMovieListDto(movieList);

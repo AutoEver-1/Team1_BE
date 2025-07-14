@@ -18,7 +18,7 @@ import java.util.List;
 public class ReviewController {
 
     // 영화 리뷰 조회
-    @GetMapping("/{movieId}")
+    @GetMapping("/movie/{movieId}")
     public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId) {
         List<ReviewDto> reviewList = createMockReviewList(movieId, 5);
         ReviewListResponseDto responseDto = new ReviewListResponseDto(reviewList);
@@ -26,7 +26,7 @@ public class ReviewController {
     }
 
     // 영화 리뷰 등록
-    @PostMapping("/{movieId}")
+    @PostMapping("/movie/{movieId}")
     public ApiResponse<Void> createReview(
             @PathVariable Long movieId,
             @RequestBody ReviewRequestDto requestDto) {
@@ -34,7 +34,7 @@ public class ReviewController {
     }
 
     // 영화 리뷰 수정
-    @PatchMapping("/{movieId}")
+    @PatchMapping("/movie/{movieId}")
     public ApiResponse<Void> updateReview(
             @PathVariable Long movieId,
             @RequestBody ReviewRequestDto requestDto) {
