@@ -62,7 +62,18 @@ public class MovieController {
     // 개봉예정작 받기
     @GetMapping("/ott/{ottId}/expect/release")
     public ApiResponse<ExpectedReleaseMovieListDto> getExpectedReleaseMovies(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        List<MovieDto> movieList = new ArrayList<>();
+
+        if(ottId == 1L){
+            movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        }else if(ottId == 2L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        }else if(ottId == 3L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/qJ2tW6WMUDux911r6m7haRef0WH.jpg");
+        }else if(ottId == 4L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/bJb9rZ2UzyasGg9oanwlIa0vm7d.jpg");
+        }
+
         ExpectedReleaseMovieListDto responseDto = new ExpectedReleaseMovieListDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -71,7 +82,18 @@ public class MovieController {
     // 최근 개봉작 받기
     @GetMapping("/ott/{ottId}/recently/release")
     public ApiResponse<RecentlyReleaseMovieListDto> getRecentlyReleaseMovies(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        List<MovieDto> movieList = new ArrayList<>();
+
+        if(ottId == 1L){
+            movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        }else if(ottId == 2L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        }else if(ottId == 3L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/qJ2tW6WMUDux911r6m7haRef0WH.jpg");
+        }else if(ottId == 4L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/bJb9rZ2UzyasGg9oanwlIa0vm7d.jpg");
+        }
+
         RecentlyReleaseMovieListDto responseDto = new RecentlyReleaseMovieListDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
