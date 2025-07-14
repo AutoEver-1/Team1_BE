@@ -21,7 +21,7 @@ public class MovieController {
             @RequestParam String searchType,
             @RequestParam String content) {
 
-        List<MovieDto> movieList = createMockMovieList(3);
+        List<MovieDto> movieList = createMockMovieList(3, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -42,7 +42,18 @@ public class MovieController {
     // OTT별 작품 조회
     @GetMapping("/ott/{ottId}")
     public ApiResponse<MovieListResponseDto> getMoviesByOtt(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(5);
+        List<MovieDto> movieList = new ArrayList<>();
+
+        if(ottId == 1L){
+            movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        }else if(ottId == 2L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        }else if(ottId == 3L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/qJ2tW6WMUDux911r6m7haRef0WH.jpg");
+        }else if(ottId == 4L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/bJb9rZ2UzyasGg9oanwlIa0vm7d.jpg");
+        }
+
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -51,7 +62,7 @@ public class MovieController {
     // 개봉예정작 받기
     @GetMapping("/ott/{ottId}/expect/release")
     public ApiResponse<ExpectedReleaseMovieListDto> getExpectedReleaseMovies(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(4);
+        List<MovieDto> movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
         ExpectedReleaseMovieListDto responseDto = new ExpectedReleaseMovieListDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -60,7 +71,7 @@ public class MovieController {
     // 최근 개봉작 받기
     @GetMapping("/ott/{ottId}/recently/release")
     public ApiResponse<RecentlyReleaseMovieListDto> getRecentlyReleaseMovies(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(4);
+        List<MovieDto> movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
         RecentlyReleaseMovieListDto responseDto = new RecentlyReleaseMovieListDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -95,7 +106,7 @@ public class MovieController {
     // 최신 영화 조회
     @GetMapping("/latest")
     public ApiResponse<MovieListResponseDto> getLatestMovies() {
-        List<MovieDto> movieList = createMockMovieList(8);
+        List<MovieDto> movieList = createMockMovieList(8, "http://image.tmdb.org/t/p/original/qJ2tW6WMUDux911r6m7haRef0WH.jpg");
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -104,7 +115,7 @@ public class MovieController {
     // 실시간 인기 영화 조회
     @GetMapping("/popular")
     public ApiResponse<MovieListResponseDto> getPopularMovies() {
-        List<MovieDto> movieList = createMockMovieList(8);
+        List<MovieDto> movieList = createMockMovieList(8, "http://image.tmdb.org/t/p/original/bJb9rZ2UzyasGg9oanwlIa0vm7d.jpg");
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -113,7 +124,7 @@ public class MovieController {
     // 역대 최고 평점 조회
     @GetMapping("/top-rated")
     public ApiResponse<MovieListResponseDto> getTopRatedMovies() {
-        List<MovieDto> movieList = createMockMovieList(8);
+        List<MovieDto> movieList = createMockMovieList(8, "http://image.tmdb.org/t/p/original/6BBT3SeNz4OM3HYa8CqjPpsiCeb.jpg");
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -126,7 +137,7 @@ public class MovieController {
         return ApiResponse.success(movieDetail, HttpStatus.OK.value());
     }
 
-    private List<MovieDto> createMockMovieList(int count) {
+    private List<MovieDto> createMockMovieList(int count, String posterPath) {
         List<MovieDto> movieList = new ArrayList<>();
 
         for (int i = 1; i <= count; i++) {
@@ -140,7 +151,8 @@ public class MovieController {
                     "Movie Title " + i,
                     (long) i,
                     genres,
-                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
+                    posterPath
+                    ,
                     8.0 + (i * 0.2),
                     directors
             );
@@ -192,9 +204,17 @@ public class MovieController {
         List<String> genres = Arrays.asList("Action", "Drama", "Thriller");
 
         Map<String, String> stillcutPath = new HashMap<>();
-        stillcutPath.put("1", "/stillcuts/movie" + movieId + "_1.jpg");
-        stillcutPath.put("2", "/stillcuts/movie" + movieId + "_2.jpg");
-        stillcutPath.put("3", "/stillcuts/movie" + movieId + "_3.jpg");
+        stillcutPath.put("1", "http://image.tmdb.org/t/p/original/6BBT3SeNz4OM3HYa8CqjPpsiCeb.jpg");
+        stillcutPath.put("2", "http://image.tmdb.org/t/p/original/cfrzq0JFDWikrb0AeCIwChYyieg.jpg");
+        stillcutPath.put("3", "http://image.tmdb.org/t/p/original/6BBT3SeNz4OM3HYa8CqjPpsiCeb.jpg");
+        stillcutPath.put("4", "http://image.tmdb.org/t/p/original/cfrzq0JFDWikrb0AeCIwChYyieg.jpg");
+        stillcutPath.put("5", "http://image.tmdb.org/t/p/original/6BBT3SeNz4OM3HYa8CqjPpsiCeb.jpg");
+        stillcutPath.put("6", "http://image.tmdb.org/t/p/original/cfrzq0JFDWikrb0AeCIwChYyieg.jpg");
+        stillcutPath.put("7", "http://image.tmdb.org/t/p/original/6BBT3SeNz4OM3HYa8CqjPpsiCeb.jpg");
+        stillcutPath.put("8", "http://image.tmdb.org/t/p/original/cfrzq0JFDWikrb0AeCIwChYyieg.jpg");
+        stillcutPath.put("9", "http://image.tmdb.org/t/p/original/6BBT3SeNz4OM3HYa8CqjPpsiCeb.jpg");
+        stillcutPath.put("10", "http://image.tmdb.org/t/p/original/cfrzq0JFDWikrb0AeCIwChYyieg.jpg");
+
 
         Map<String, String> languages = new HashMap<>();
         languages.put("en", "English");
