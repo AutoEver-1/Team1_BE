@@ -1,0 +1,19 @@
+package autoever_2st.project.admin.dto.stats;
+
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+import java.util.Map;
+
+@NoArgsConstructor
+@Getter
+public class RegisterStatsDto {
+    private Integer year;
+    private List<Map<Integer, Integer>> registerCountList;
+
+    public RegisterStatsDto(Integer year, List<Map<Integer, Integer>> registerCountList) {
+        this.year = year;
+        this.registerCountList = registerCountList;
+    }
+}

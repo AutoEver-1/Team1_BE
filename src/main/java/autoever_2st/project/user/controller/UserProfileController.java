@@ -1,0 +1,175 @@
+package autoever_2st.project.user.controller;
+
+import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.movie.dto.DirectorDto;
+import autoever_2st.project.movie.dto.MovieDto;
+import autoever_2st.project.movie.dto.response.MovieListResponseDto;
+import autoever_2st.project.user.dto.UserFollowerDto;
+import autoever_2st.project.user.dto.UserWishlistItemDto;
+import autoever_2st.project.user.dto.response.UserProfileDto;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/user")
+public class UserProfileController {
+
+    // 유저 정보 조회
+    @GetMapping("/{memberId}")
+    public ApiResponse<UserProfileDto> getUserProfile(@PathVariable Long memberId) {
+        UserProfileDto userProfile = createMockUserProfile(memberId);
+        return ApiResponse.success(userProfile, HttpStatus.OK.value());
+    }
+
+    // 유저 팔로우
+    @PostMapping("/{memberId}/follow")
+    public ApiResponse<Void> followUser(@PathVariable Long memberId) {
+        // Mock implementation
+        return ApiResponse.success(null, HttpStatus.OK.value());
+    }
+
+    // 유저 팔로우 취소
+    @DeleteMapping("/{memberId}/follow")
+    public ApiResponse<Void> unfollowUser(@PathVariable Long memberId) {
+        // Mock implementation
+        return ApiResponse.success(null, HttpStatus.OK.value());
+    }
+
+    // 최근 본 영화 조회
+    @GetMapping("/{memberId}/recent-movie")
+    public ApiResponse<MovieListResponseDto> getRecentMovies(@PathVariable Long memberId) {
+        List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    // 위시리스트 조회
+    @GetMapping("/{memberId}/wishlist")
+    public ApiResponse<MovieListResponseDto> getWishlist(@PathVariable Long memberId) {
+        List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    // 최애 영화 조회
+    @GetMapping("/{memberId}/favorite-movie")
+    public ApiResponse<MovieListResponseDto> getFavoriteMovies(@PathVariable Long memberId) {
+        List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    // 비선호 영화 조회
+    @GetMapping("/{memberId}/dislike-movie")
+    public ApiResponse<MovieListResponseDto> getDislikedMovies(@PathVariable Long memberId) {
+        List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    // Helper method to create mock user profile
+    private UserProfileDto createMockUserProfile(Long memberId) {
+        List<UserFollowerDto> followers = createMockFollowers(3);
+        List<UserFollowerDto> following = createMockFollowers(5);
+        List<String> preferenceGenres = Arrays.asList("Action", "Drama", "Comedy");
+        List<UserWishlistItemDto> wishlist = createMockWishlist(4);
+        
+        return new UserProfileDto(
+                memberId,
+                true,
+                false,
+                "User " + memberId,
+                followers.size(),
+                followers,
+                following.size(),
+                following,
+                memberId % 2 == 0 ? "male" : "female",
+                new Date(),
+                "/profiles/user" + memberId + ".jpg",
+                memberId % 3 == 0 ? "CRITIC" : "USER",
+                preferenceGenres,
+                wishlist
+        );
+    }
+
+    private List<UserFollowerDto> createMockFollowers(int count) {
+        List<UserFollowerDto> followers = new ArrayList<>();
+        
+        for (int i = 1; i <= count; i++) {
+            UserFollowerDto follower = new UserFollowerDto(
+                    "Follower " + i,
+                    "/profiles/follower" + i + ".jpg",
+                    (long) i
+            );
+            
+            followers.add(follower);
+        }
+        
+        return followers;
+    }
+
+    private List<UserWishlistItemDto> createMockWishlist(int count) {
+        List<UserWishlistItemDto> wishlist = new ArrayList<>();
+        
+        for (int i = 1; i <= count; i++) {
+            List<String> genres = Arrays.asList("Action", "Drama");
+            
+            UserWishlistItemDto item = new UserWishlistItemDto(
+                    (long) i,
+                    "/posters/movie" + i + ".jpg",
+                    "Movie Title " + i,
+                    genres
+            );
+            
+            wishlist.add(item);
+        }
+        
+        return wishlist;
+    }
+
+    private List<MovieDto> createMockMovieList(int count) {
+        List<MovieDto> movieList = new ArrayList<>();
+        
+        for (int i = 1; i <= count; i++) {
+            List<DirectorDto> directors = createMockDirectorList(1);
+            List<String> genres = Arrays.asList("Action", "Drama");
+            
+            MovieDto movie = new MovieDto(
+                    false,
+                    new Date(),
+                    4.5 + (i * 0.1),
+                    "Movie Title " + i,
+                    (long) i,
+                    genres,
+                    "/posters/movie" + i + ".jpg",
+                    8.0 + (i * 0.2),
+                    directors
+            );
+            
+            movieList.add(movie);
+        }
+        
+        return movieList;
+    }
+
+    private List<DirectorDto> createMockDirectorList(int count) {
+        List<DirectorDto> directorList = new ArrayList<>();
+        
+        for (int i = 1; i <= count; i++) {
+            DirectorDto director = new DirectorDto(
+                    i % 2 == 0 ? "male" : "female",
+                    (long) i,
+                    "Director Name " + i,
+                    "Original Director Name " + i,
+                    8.5 + (i * 0.1),
+                    i % 3 == 0 ? null : "/profiles/director" + i + ".jpg"
+            );
+            
+            directorList.add(director);
+        }
+        
+        return directorList;
+    }
+}
