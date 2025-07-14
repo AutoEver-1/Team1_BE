@@ -73,7 +73,7 @@ public class AdminReviewController {
             AdminMovieDto movie = new AdminMovieDto(
                     (long) i,
                     "Movie Title " + i,
-                    "/posters/movie" + i + ".jpg"
+                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg"
             );
 
             AdminReviewDto review = new AdminReviewDto(

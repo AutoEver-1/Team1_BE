@@ -140,7 +140,7 @@ public class MovieController {
                     "Movie Title " + i,
                     (long) i,
                     genres,
-                    "/posters/movie" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                     8.0 + (i * 0.2),
                     directors
             );
@@ -161,7 +161,7 @@ public class MovieController {
                     "Director Name " + i,
                     "Original Director Name " + i,
                     8.5 + (i * 0.1),
-                    i % 3 == 0 ? null : "/profiles/director" + i + ".jpg"
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
 
             directorList.add(director);
@@ -177,7 +177,7 @@ public class MovieController {
             ActorDto actor = new ActorDto(
                     "Actor Name " + i,
                     "Character " + i,
-                    i % 4 == 0 ? null : "/profiles/actor" + i + ".jpg"
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
 
             actorList.add(actor);
@@ -211,8 +211,8 @@ public class MovieController {
                 8.5,
                 directors,
                 actors,
-                "/videos/movie" + movieId + ".mp4",
-                "/posters/movie" + movieId + ".jpg",
+                "https://www.youtube.com/watch?v=8hP9D6kZseM",
+                "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                 stillcutPath,
                 120 + movieId.intValue(),
                 languages

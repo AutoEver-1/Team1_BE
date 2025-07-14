@@ -41,7 +41,7 @@ public class Top100Controller {
                     "Top 100 Movie #" + i,
                     (long) i,
                     genres,
-                    "/posters/top100_" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                     9.5 - (i * 0.03),
                     directors
             );
@@ -62,7 +62,7 @@ public class Top100Controller {
                     "Famous Director " + i,
                     "Original Director Name " + i,
                     9.0 + (i * 0.1),
-                    i % 5 == 0 ? null : "/profiles/famous_director" + i + ".jpg"
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
             
             directorList.add(director);

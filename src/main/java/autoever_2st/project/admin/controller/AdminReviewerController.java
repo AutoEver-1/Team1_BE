@@ -85,7 +85,7 @@ public class AdminReviewerController {
                 "CRITIC",
                 "Reviewer " + memberId,
                 10,
-                "/profiles/reviewer" + memberId + ".jpg",
+                "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                 20,
                 false
         );
@@ -101,7 +101,7 @@ public class AdminReviewerController {
                     i % 3 == 0 ? "CRITIC" : "USER",
                     "Reviewer " + i,
                     10 + i,
-                    "/profiles/reviewer" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                     20 + i,
                     i % 5 == 0 // Every 5th reviewer is banned
             );

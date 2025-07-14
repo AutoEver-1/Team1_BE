@@ -22,7 +22,7 @@ public class UserController {
                 1L,
                 "user123",
                 "male",
-                "/profiles/user123.jpg",
+                "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                 "USER",
                 "John Doe"
         );
@@ -36,7 +36,7 @@ public class UserController {
                 2L,
                 "oauth_user",
                 "female",
-                "/profiles/oauth_user.jpg",
+                "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                 "USER",
                 "Jane Smith"
         );

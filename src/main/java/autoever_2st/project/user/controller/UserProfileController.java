@@ -87,7 +87,7 @@ public class UserProfileController {
                 following,
                 memberId % 2 == 0 ? "male" : "female",
                 new Date(),
-                "/profiles/user" + memberId + ".jpg",
+                "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                 memberId % 3 == 0 ? "CRITIC" : "USER",
                 preferenceGenres,
                 wishlist
@@ -100,7 +100,7 @@ public class UserProfileController {
         for (int i = 1; i <= count; i++) {
             UserFollowerDto follower = new UserFollowerDto(
                     "Follower " + i,
-                    "/profiles/follower" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                     (long) i
             );
             
@@ -118,7 +118,7 @@ public class UserProfileController {
             
             UserWishlistItemDto item = new UserWishlistItemDto(
                     (long) i,
-                    "/posters/movie" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                     "Movie Title " + i,
                     genres
             );
@@ -143,7 +143,7 @@ public class UserProfileController {
                     "Movie Title " + i,
                     (long) i,
                     genres,
-                    "/posters/movie" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                     8.0 + (i * 0.2),
                     directors
             );
@@ -164,7 +164,7 @@ public class UserProfileController {
                     "Director Name " + i,
                     "Original Director Name " + i,
                     8.5 + (i * 0.1),
-                    i % 3 == 0 ? null : "/profiles/director" + i + ".jpg"
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
             
             directorList.add(director);

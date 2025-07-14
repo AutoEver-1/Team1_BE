@@ -70,7 +70,7 @@ public class ReviewController {
                     "This is a review for movie " + movieId + ". Review number " + i,
                     4.0 + (i * 0.5) % 1.0,
                     "Reviewer " + i,
-                    "/profiles/reviewer" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                     i % 3 == 0 ? "CRITIC" : "USER",
                     10 + i,
                     i == 1,

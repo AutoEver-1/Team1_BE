@@ -43,7 +43,7 @@ public class ReviewerController {
                     i % 3 == 0 ? "CRITIC" : "USER",
                     "Reviewer " + i,
                     10 + i,
-                    "/profiles/reviewer" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                     genrePreferences,
                     20 + i,
                     4.0 + (i * 0.1),
@@ -61,7 +61,7 @@ public class ReviewerController {
         
         for (int i = 1; i <= count; i++) {
             WishlistItemDto item = new WishlistItemDto(
-                    "/posters/movie" + i + ".jpg",
+                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                     (long) i
             );
             
