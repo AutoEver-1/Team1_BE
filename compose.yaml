@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  backend:
+    image: hojipkim/hyundai_backend:latest
+    depends_on:
+      - db
+    ports:
+      - 8080:8080
+    networks:
+      - kimprun-network
+
+  db:
+    image: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD:
+      MYSQL_DATABASE: cinever
+      MYSQL_USER: root
+    networks:
+      - hyundai-network
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  hyundai-network:
+    driver: bridge
