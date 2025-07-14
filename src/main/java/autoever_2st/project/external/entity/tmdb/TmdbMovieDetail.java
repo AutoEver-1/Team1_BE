@@ -1,0 +1,125 @@
+package autoever_2st.project.external.entity.tmdb;
+
+import autoever_2st.project.common.entity.TimeStamp;
+import autoever_2st.project.movie.entity.Movie;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "tmdb_movie_detail")
+@Getter
+@NoArgsConstructor
+public class TmdbMovieDetail extends TimeStamp {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "is_adult", nullable = false)
+    private Boolean isAdult;
+
+    @Column(name = "tmdb_id", nullable = false)
+    private Long tmdbId;
+
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "original_title")
+    private String originalTitle;
+
+    @Column(name = "original_language")
+    private String originalLanguage;
+
+    @Column(name = "overview")
+    private String overview;
+
+    @Column(name = "status")
+    private String status;
+
+    @Column(name = "release_date")
+    private LocalDate releaseDate;
+
+    @Column(name = "runtime")
+    private Integer runtime;
+
+    @Column(name = "video")
+    private Boolean video;
+
+    @Column(name = "vote_average")
+    private Double voteAverage;
+
+    @Column(name = "vote_count")
+    private Long voteCount;
+
+    @Column(name = "popularity")
+    private Double popularity;
+
+    @Column(name = "media_type")
+    private String mediaType;
+
+    @OneToOne(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "movie_id")
+    private Movie movie;
+
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new ArrayList<>();
+
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieImages> tmdbMovieImages = new ArrayList<>();
+
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieVideo> tmdbMovieVideo = new ArrayList<>();
+
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MovieGenreMatch> movieGenreMatch = new ArrayList<>();
+
+    public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, LocalDate releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
+        this.isAdult = isAdult;
+        this.tmdbId = tmdbId;
+        this.title = title;
+        this.originalTitle = originalTitle;
+        this.originalLanguage = originalLanguage;
+        this.overview = overview;
+        this.status = status;
+        this.releaseDate = releaseDate;
+        this.runtime = runtime;
+        this.video = video;
+        this.voteAverage = voteAverage;
+        this.voteCount = voteCount;
+        this.popularity = popularity;
+        this.mediaType = mediaType;
+    }
+
+    public TmdbMovieDetail setMovie(Movie movie){
+        this.movie = movie;
+        movie.setTmdbMovieDetail(this);
+        return this;
+    }
+
+    public TmdbMovieDetail addTmdbMovieDetailOtt(TmdbMovieDetailOtt tmdbMovieDetailOtt){
+        this.tmdbMovieDetailOtt.add(tmdbMovieDetailOtt);
+        return this;
+    }
+
+    public TmdbMovieDetail addTmdbMovieImages(TmdbMovieImages tmdbMovieImages){
+        this.tmdbMovieImages.add(tmdbMovieImages);
+        return this;
+    }
+
+    public TmdbMovieDetail addTmdbMovieVideo(TmdbMovieVideo tmdbMovieVideo){
+        this.tmdbMovieVideo.add(tmdbMovieVideo);
+        return this;
+    }
+
+    public TmdbMovieDetail addMovieGenreMatch(MovieGenreMatch movieGenreMatch){
+        this.movieGenreMatch.add(movieGenreMatch);
+        return this;
+    }
+
+
+
+}
