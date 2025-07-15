@@ -280,7 +280,7 @@ public class MovieController {
                 directors,
                 actors,
                 "https://www.youtube.com/watch?v=8hP9D6kZseM",
-                "http://image.tmdb.org/t/p/original/ihFKthUgFqKIIsuwM9Dm7vr3QR0.jpg",
+                "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                 stillcutPath,
                 120 + movieId.intValue(),
                 languages
