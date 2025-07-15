@@ -15,8 +15,8 @@ public class KoficBoxOffice extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "rank")
-    private Integer rank;
+    @Column(name = "box_office_rank")
+    private Integer boxOfficeRank;
 
     @Column(name = "customer_count")
     private Long customerCount;
@@ -32,7 +32,7 @@ public class KoficBoxOffice extends TimeStamp {
     private KoficMovieDetail koficMovieDetail;
 
     public KoficBoxOffice(Integer rank, Long customerCount, Long cumulativeCount, Long comparedByYesterday) {
-        this.rank = rank;
+        this.boxOfficeRank = rank;
         this.customerCount = customerCount;
         this.cumulativeCount = cumulativeCount;
         this.comparedByYesterday = comparedByYesterday;

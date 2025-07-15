@@ -17,15 +17,15 @@ public class TmdbMovieTrend extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "rank")
-    private Integer Rank;
+    @Column(name = "tmdb_trend_rank")
+    private Integer tmdbTrendRank;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tmdb_movie_detail_id")
     private TmdbMovieDetail tmdbMovieDetail;
 
     public TmdbMovieTrend(Integer rank) {
-        Rank = rank;
+        tmdbTrendRank = rank;
     }
 
     public TmdbMovieTrend setTmdbMovieDetail(TmdbMovieDetail tmdbMovieDetail){
