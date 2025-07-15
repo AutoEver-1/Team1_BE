@@ -5,6 +5,7 @@ import autoever_2st.project.user.Entity.Role;
 import autoever_2st.project.user.Entity.RoleType;
 import autoever_2st.project.user.Repository.RoleRepository;
 import autoever_2st.project.user.Repository.UserRepository;
+import autoever_2st.project.user.dto.request.LoginRequestDto;
 import autoever_2st.project.user.dto.request.SignupRequestDto;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -67,6 +68,14 @@ public class UserService {
         userRepository.save(member);
     }
 
+    // 로그인 메서드 추가
+    public Member login(LoginRequestDto loginRequestDto) {
+        Member member = userRepository.findByEmail(loginRequestDto.getEmail());
+        if (member != null && bCryptPasswordEncoder.matches(loginRequestDto.getPassword(), member.getPassword())) {
+            return member;
+        }
+        return null;
+    }
 
 
 }

@@ -1,5 +1,9 @@
 package autoever_2st.project.security;
 
+import autoever_2st.project.user.Repository.RoleRepository;
+import autoever_2st.project.user.filter.JWTFilter;
+import autoever_2st.project.user.filter.LoginFilter;
+import autoever_2st.project.user.jwt.JWTUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +16,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @EnableWebSecurity
 @Configuration
@@ -19,6 +24,21 @@ import org.springframework.security.web.SecurityFilterChain;
 @Slf4j
 public class SecurityConfig {
 
+    private final AuthenticationConfiguration configuration;
+    private final JWTUtil jwtUtil;
+    private final RoleRepository roleRepository;  // 추가
+
+    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil,  RoleRepository roleRepository) {
+        this.configuration = configuration;
+        this.jwtUtil = jwtUtil;
+        this.roleRepository = roleRepository;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+
+        return configuration.getAuthenticationManager();
+    }
 
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
@@ -42,12 +62,27 @@ public class SecurityConfig {
         httpSecurity.sessionManagement((session)->session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-//        httpSecurity.authorizeHttpRequests((auth) -> auth
-//                .requestMatchers("/login", "/", "/signup").permitAll()  // 로그인, 루트, 회원가입은 누구나 접근 가능
-//                .anyRequest().authenticated());                                  // 나머지는 인증된 사용자만 접근 가능
-
 
       //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
+        // 새로 만든 로그인 필터를 원래의 (UsernamePasswordAuthenticationFilter)의 자리에 넣음
+        httpSecurity.addFilterAt(new LoginFilter(authenticationManager(configuration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
+
+        // 로그인 필터 이전에 JWTFilter를 넣음
+        httpSecurity.addFilterBefore(new JWTFilter(jwtUtil, roleRepository), LoginFilter.class);
+
+        // 로그인 설정
+        httpSecurity
+                .formLogin((auth) -> auth.loginPage("/login")
+                        .loginProcessingUrl("/login")
+                        .permitAll()
+                );
+
+        // 로그아웃 URL 설정
+        httpSecurity
+                .logout((auth) -> auth
+                        .logoutUrl("/logout")
+                );
+
 
         //세션 설정
         httpSecurity.sessionManagement((session)->session
