@@ -20,7 +20,7 @@ public class TmdbMovieCharacter extends TimeStamp {
     @Column(name = "gender")
     private Gender gender;
 
-    @ManyToOne(,fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tmdb_movie_detail_id")
     private TmdbMovieDetail tmdbMovieDetail;
 
