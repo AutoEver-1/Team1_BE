@@ -27,12 +27,13 @@ public class Member {
     private String password;
 
     private String name;
-    private int gender;
+    private String gender;
     private LocalDate birth_date;
 
     @Column(unique = true)
     private String nickname;
     private String profile_img_url;
+
     private Boolean is_delete;
     private Boolean is_banned;
 
