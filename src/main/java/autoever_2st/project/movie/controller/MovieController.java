@@ -1,6 +1,7 @@
 package autoever_2st.project.movie.controller;
 
 import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.external.dto.tmdb.response.movie.ProductionCompanyDto;
 import autoever_2st.project.movie.dto.*;
 import autoever_2st.project.movie.dto.response.BoxOfficeResponseDto;
 import autoever_2st.project.movie.dto.response.ExpectedReleaseMovieListDto;
@@ -62,7 +63,18 @@ public class MovieController {
     // 개봉예정작 받기
     @GetMapping("/ott/{ottId}/expect/release")
     public ApiResponse<ExpectedReleaseMovieListDto> getExpectedReleaseMovies(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        List<MovieDto> movieList = new ArrayList<>();
+
+        if(ottId == 1L){
+            movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        }else if(ottId == 2L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        }else if(ottId == 3L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/qJ2tW6WMUDux911r6m7haRef0WH.jpg");
+        }else if(ottId == 4L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/bJb9rZ2UzyasGg9oanwlIa0vm7d.jpg");
+        }
+
         ExpectedReleaseMovieListDto responseDto = new ExpectedReleaseMovieListDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -71,7 +83,18 @@ public class MovieController {
     // 최근 개봉작 받기
     @GetMapping("/ott/{ottId}/recently/release")
     public ApiResponse<RecentlyReleaseMovieListDto> getRecentlyReleaseMovies(@PathVariable Long ottId) {
-        List<MovieDto> movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        List<MovieDto> movieList = new ArrayList<>();
+
+        if(ottId == 1L){
+            movieList = createMockMovieList(10, "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg");
+        }else if(ottId == 2L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/ogyw5LTmL53dVxsppcy8Dlm30Fu.jpg");
+        }else if(ottId == 3L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/qJ2tW6WMUDux911r6m7haRef0WH.jpg");
+        }else if(ottId == 4L){
+            movieList = createMockMovieList(10,"http://image.tmdb.org/t/p/original/bJb9rZ2UzyasGg9oanwlIa0vm7d.jpg");
+        }
+
         RecentlyReleaseMovieListDto responseDto = new RecentlyReleaseMovieListDto(movieList);
 
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
@@ -93,7 +116,8 @@ public class MovieController {
                     "Box Office Movie " + i,
                     new Date(),
                     1000000L + (i * 100000),
-                    directors
+                    directors,
+                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg"
             );
 
             movieList.add(movie);
@@ -220,6 +244,22 @@ public class MovieController {
         languages.put("en", "English");
         languages.put("ko", "Korean");
 
+        List<OttDto> ottList = new ArrayList<>();
+        List<ProductionCompanyDto> productionCompanyDtos = new ArrayList<>();
+        for(int i = 0; i < 3; i++){
+            ottList.add(new OttDto(
+                    i,
+                    ("ott" + i).toString(),
+                    "http://image.tmdb.org/t/p/original/9ghgSC0MA082EL6HLCW3GalykFD.jpg"));
+        }
+
+        for(int i = 0; i < 4; i++){
+            productionCompanyDtos.add(new ProductionCompanyDto(
+                    i, "http://image.tmdb.org/t/p/original/q5I5RDwMEiqoNmfaJgd2LraEOJY.png", "Production Company " + i, "FR"
+                    )
+            );
+        }
+
         return new MovieDetailDto(
                 false,
                 new Date(),
@@ -227,12 +267,20 @@ public class MovieController {
                 "Movie Title " + movieId,
                 movieId,
                 genres,
-                "/backdrops/movie" + movieId + ".jpg",
+                "http://image.tmdb.org/t/p/original/gDekB0OnIYbKhqzzdArfSQpcAvH.jpg",
                 8.5,
+                "한국",
+                "교도소에 수감 중인 빅토르(리베르토 리발)는 우연히 TV를 보다, 농구 스타이자 자신이 사랑한 엘레나(프란세스카 네리)의 남편이 되어있는 다비드(하비에르 바르뎀)를 보고 분노한다. 출소 후, 빅토르는 엘레나가 일하는 아동보호소에서 자원봉사 활동을 하며 그녀와 가까워질 기회를 노린다. 이 사실을 알게 된 다비드는 빅토르를 찾아가는데…",
+                623841232,
+                361283,
+                ottList,
+                true,
+                true,
+                productionCompanyDtos,
                 directors,
                 actors,
                 "https://www.youtube.com/watch?v=8hP9D6kZseM",
-                "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
+                "http://image.tmdb.org/t/p/original/ihFKthUgFqKIIsuwM9Dm7vr3QR0.jpg",
                 stillcutPath,
                 120 + movieId.intValue(),
                 languages
