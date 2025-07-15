@@ -1,7 +1,9 @@
 package autoever_2st.project.user.controller;
 
 import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.user.Entity.JwtToken;
 import autoever_2st.project.user.Entity.Member;
+import autoever_2st.project.user.Repository.JwtTokenRepository;
 import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.request.LoginRequestDto;
 import autoever_2st.project.user.dto.request.SignupRequestDto;
@@ -22,6 +24,7 @@ public class UserController {
 
     private final UserService userService;
     private final JWTUtil jwtUtil;
+    private final JwtTokenRepository jwtTokenRepository;
 
 
     @PostMapping(value = "/signup",consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -39,8 +42,16 @@ public class UserController {
             return ApiResponse.fail("ID 또는 비밀번호가 일치하지 않습니다.", HttpStatus.BAD_REQUEST.value());
         }
 
-        // JWT 토큰 생성 (email, roleName, 만료시간)
-        String token = jwtUtil.createJwt(member.getEmail(), member.getRole().getName().name(), 1000 * 60 * 60L);
+        // JWT 발급 (email, roleName, 만료시간)
+        String accessToken = jwtUtil.createJwt(member.getEmail(), member.getRole().getName().name(), 1000 * 60 * 60L);
+        String refreshToken = jwtUtil.createJwt(member.getEmail(), member.getRole().getName().name(), 1000 * 60 * 60 * 24 * 7L); // 7일짜리
+
+        // JWT Token DB 저장 또는 업데이트
+        JwtToken jwtToken = jwtTokenRepository.findByMember(member).orElse(new JwtToken());
+        jwtToken.setAccessToken(accessToken);
+        jwtToken.setRefreshToken(refreshToken);
+        jwtToken.setMember(member);
+        jwtTokenRepository.save(jwtToken);
 
         // LoginResponseDto 생성
         LoginResponseDto loginResponseDto = LoginResponseDto.builder()
@@ -50,11 +61,12 @@ public class UserController {
                 .profilePath(member.getProfile_img_url())
                 .roleName(member.getRole().getName().name())
                 .realName(member.getName())
-                .token(token)
+                .token(accessToken)
                 .build();
 
         return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());
     }
+
 //    @PostMapping("/login")
 //    public ApiResponse<LoginResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
 //        LoginResponseDto loginResponseDto = new LoginResponseDto(

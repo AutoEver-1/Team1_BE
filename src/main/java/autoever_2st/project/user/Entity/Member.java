@@ -26,7 +26,6 @@ public class Member {
     @Column(nullable = false)
     private String email;
     private String password;
-
     private String name;
     private String gender;
     private LocalDate birth_date;
@@ -38,5 +37,8 @@ public class Member {
     private Boolean is_delete;
     @ColumnDefault("false")
     private Boolean is_banned;
+
+    @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
+    private JwtToken jwtToken;
 
 }

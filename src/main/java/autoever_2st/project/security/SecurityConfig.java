@@ -63,7 +63,7 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
 
-      //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
+        //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
         // 새로 만든 로그인 필터를 원래의 (UsernamePasswordAuthenticationFilter)의 자리에 넣음
         httpSecurity.addFilterAt(new LoginFilter(authenticationManager(configuration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
 
@@ -84,9 +84,6 @@ public class SecurityConfig {
                 );
 
 
-        //세션 설정
-        httpSecurity.sessionManagement((session)->session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
 
 
