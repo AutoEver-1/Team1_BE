@@ -3,6 +3,8 @@ package autoever_2st.project.security;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -17,9 +19,9 @@ import org.springframework.security.web.SecurityFilterChain;
 @Slf4j
 public class SecurityConfig {
 
+
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
-
         return new BCryptPasswordEncoder();
     }
 
@@ -39,6 +41,19 @@ public class SecurityConfig {
         //세션 설정
         httpSecurity.sessionManagement((session)->session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+//        httpSecurity.authorizeHttpRequests((auth) -> auth
+//                .requestMatchers("/login", "/", "/signup").permitAll()  // 로그인, 루트, 회원가입은 누구나 접근 가능
+//                .anyRequest().authenticated());                                  // 나머지는 인증된 사용자만 접근 가능
+
+
+      //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
+
+        //세션 설정
+        httpSecurity.sessionManagement((session)->session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+
 
         return httpSecurity.build();
     }

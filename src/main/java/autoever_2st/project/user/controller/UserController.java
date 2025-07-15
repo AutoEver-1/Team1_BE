@@ -6,6 +6,7 @@ import autoever_2st.project.user.dto.request.LoginRequestDto;
 import autoever_2st.project.user.dto.request.SignupRequestDto;
 import autoever_2st.project.user.dto.response.LoginResponseDto;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -21,9 +22,9 @@ public class UserController {
         this.userService = userService;
     }
 
-
-    @PostMapping("/signup")
+    @PostMapping(value = "/signup",consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Void> signup(@RequestBody SignupRequestDto signupRequestDto) {
+        userService.signup(signupRequestDto);
         return ApiResponse.success(null, HttpStatus.CREATED.value());
     }
 
