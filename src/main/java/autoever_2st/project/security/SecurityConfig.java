@@ -49,18 +49,26 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
                 .csrf(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable)
-                //http basic 인증 방식 disable
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs/swagger-config", "/swagger-resources/**", "/webjars/**")
+                .formLogin((auth) -> auth
+                        .loginPage("/login")
+                        .loginProcessingUrl("/login")
                         .permitAll()
+                )
+                .oauth2Login(auth -> auth
+                        .loginPage("/login")
+                        .defaultSuccessUrl("/oauth-login")
+                        .failureUrl("/login?error")
+                        .permitAll()
+                )
+                .authorizeHttpRequests(authorize -> authorize
+                        //.requestMatchers("/api/posts/**", "/api/likes/**").authenticated()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs/swagger-config", "/swagger-resources/**", "/webjars/**").permitAll()
                         .anyRequest().permitAll()
                 );
 
         //세션 설정
         httpSecurity.sessionManagement((session)->session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
 
         //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
@@ -70,21 +78,8 @@ public class SecurityConfig {
         // 로그인 필터 이전에 JWTFilter를 넣음
         httpSecurity.addFilterBefore(new JWTFilter(jwtUtil, roleRepository), LoginFilter.class);
 
-        // 로그인 설정
-        httpSecurity
-                .formLogin((auth) -> auth.loginPage("/login")
-                        .loginProcessingUrl("/login")
-                        .permitAll()
-                );
-
         // 로그아웃 URL 설정
-        httpSecurity
-                .logout((auth) -> auth
-                        .logoutUrl("/logout")
-                );
-
-
-
+        httpSecurity.logout((auth) -> auth.logoutUrl("/logout"));
 
 
         return httpSecurity.build();
