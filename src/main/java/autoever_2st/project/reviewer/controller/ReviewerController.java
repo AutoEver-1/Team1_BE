@@ -20,14 +20,14 @@ import java.util.List;
 @RequestMapping("/api/reviewer")
 public class ReviewerController {
 
-    // 리뷰어 검색
     @GetMapping("/{reviewerName}")
     public ApiResponse<ReviewerSearchResponseDto> searchReviewer(@PathVariable String reviewerName) {
-        ReviewerSearchResponseDto responseDto = new ReviewerSearchResponseDto(1L);
+        List<ReviewerDto> matchedReviewers = createMockReviewerListWithName(reviewerName, 5);
+
+        ReviewerSearchResponseDto responseDto = new ReviewerSearchResponseDto(matchedReviewers);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
-    // 전체 리뷰어 조회
     @GetMapping("/all")
     public ApiResponse<ReviewerListResponseDto> getAllReviewers(
             @RequestParam(defaultValue = "0") int page,
@@ -55,6 +55,8 @@ public class ReviewerController {
             List<String> genrePreferences = Arrays.asList("Action", "Drama", "Comedy");
             List<WishlistItemDto> wishlist = createMockWishlist(3);
 
+            int followerCount = 20 + (int)(Math.random() * 100);
+
             ReviewerDto reviewer = new ReviewerDto(
                     (long) i,
                     i % 3 == 0 ? "CRITIC" : "USER",
@@ -62,13 +64,15 @@ public class ReviewerController {
                     10 + i,
                     "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                     genrePreferences,
-                    20 + i,
+                    followerCount,
                     4.0 + (i * 0.1),
                     wishlist
             );
 
             reviewerList.add(reviewer);
         }
+
+        reviewerList.sort((r1, r2) -> Integer.compare(r2.getFollower_cnt(), r1.getFollower_cnt()));
 
         return reviewerList;
     }
@@ -86,5 +90,37 @@ public class ReviewerController {
         }
 
         return wishlist;
+    }
+
+    private List<ReviewerDto> createMockReviewerListWithName(String reviewerName, int count) {
+        List<ReviewerDto> reviewerList = new ArrayList<>();
+
+        for (int i = 1; i <= count; i++) {
+            List<String> genrePreferences = Arrays.asList("Action", "Drama", "Comedy");
+            List<WishlistItemDto> wishlist = createMockWishlist(3);
+
+            String nickname = "Reviewer " + reviewerName + " " + i;
+
+            int followerCount = 20 + (int)(Math.random() * 100);
+
+            ReviewerDto reviewer = new ReviewerDto(
+                    (long) i,
+                    i % 3 == 0 ? "INFLUENCER" : "USER",
+                    nickname,
+                    10 + i,
+                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
+                    genrePreferences,
+                    followerCount,
+                    4.0 + (i * 0.1),
+                    wishlist
+            );
+
+            reviewerList.add(reviewer);
+        }
+
+        // follower_cnt 기준으로 내림차순 정렬
+        reviewerList.sort((r1, r2) -> Integer.compare(r2.getFollower_cnt(), r1.getFollower_cnt()));
+
+        return reviewerList;
     }
 }
