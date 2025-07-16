@@ -6,12 +6,15 @@ import autoever_2st.project.admin.dto.AdminReviewItemDto;
 import autoever_2st.project.admin.dto.request.ReviewBlockRequestDto;
 import autoever_2st.project.admin.dto.request.ReviewMultiBlockRequestDto;
 import autoever_2st.project.admin.dto.response.AdminReviewListResponseDto;
+import autoever_2st.project.admin.dto.stats.ReviewStatsDto;
+import autoever_2st.project.admin.dto.stats.TotalReviewStatsDto;
 import autoever_2st.project.common.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/review")
@@ -80,7 +83,8 @@ public class AdminReviewController {
                     (long) i,
                     "Reviewer " + i,
                     4.0 + (i * 0.5) % 1.0,
-                    i % 5 == 0 // Every 5th review is banned
+                    i % 5 == 0,
+                    "정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good"
             );
 
             AdminReviewItemDto reviewItem = new AdminReviewItemDto(movie, review);
@@ -88,5 +92,42 @@ public class AdminReviewController {
         }
 
         return reviewList;
+    }
+
+    @GetMapping("/admin/stats/trend")
+    public ResponseEntity<ReviewStatsDto> getReviewStats(@RequestParam(required = false, defaultValue = "month") String dateType) {
+        // 현재 연도 가져오기
+        int currentYear = LocalDate.now().getYear();
+
+        List<Map<Integer, Integer>> reviewCountList = new ArrayList<>();
+
+        if ("day".equals(dateType)) {
+            LocalDate today = LocalDate.now();
+            for (int i = 6; i >= 0; i--) {
+                LocalDate date = today.minusDays(i);
+                int dayOfMonth = date.getDayOfMonth();
+                Map<Integer, Integer> dayData = new HashMap<>();
+                dayData.put(dayOfMonth, (int) (Math.random() * 81) + 20);
+                reviewCountList.add(dayData);
+            }
+        } else {
+            // 월별 리뷰 작성 건수 목업 데이터 생성
+            for (int month = 1; month <= 12; month++) {
+                Map<Integer, Integer> monthData = new HashMap<>();
+                monthData.put(month, (int) (Math.random() * 401) + 100);
+                reviewCountList.add(monthData);
+            }
+        }
+
+        ReviewStatsDto response = new ReviewStatsDto(currentYear, reviewCountList);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/admin/stats/total")
+    public ResponseEntity<TotalReviewStatsDto> getTotalReviewStats() {
+        long totalReview = (long) (Math.random() * 50001) + 50000;
+
+        TotalReviewStatsDto response = new TotalReviewStatsDto(totalReview);
+        return ResponseEntity.ok(response);
     }
 }
