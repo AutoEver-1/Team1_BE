@@ -41,4 +41,6 @@ public class Member {
     @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private JwtToken jwtToken;
 
+
+
 }
