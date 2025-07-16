@@ -2,6 +2,11 @@ package autoever_2st.project.user.Entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Getter @Setter
@@ -9,6 +14,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EntityListeners(AuditingEntityListener.class)
 public class JwtToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,5 +29,14 @@ public class JwtToken {
 
     @Column(length = 1000)
     private String refreshToken;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime deletedAt; // soft delete용 수동 처리
 
 }
