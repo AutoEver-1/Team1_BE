@@ -10,11 +10,13 @@ public class AdminReviewDto {
     private String nickname;
     private Double rating;
     private Boolean isBanned;
+    private String content;
 
-    public AdminReviewDto(Long memberId, String nickname, Double rating, Boolean isBanned) {
+    public AdminReviewDto(Long memberId, String nickname, Double rating, Boolean isBanned, String content) {
         this.memberId = memberId;
         this.nickname = nickname;
         this.rating = rating;
         this.isBanned = isBanned;
+        this.content = content;
     }
 }

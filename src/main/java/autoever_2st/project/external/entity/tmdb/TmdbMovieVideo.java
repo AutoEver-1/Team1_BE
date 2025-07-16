@@ -2,9 +2,13 @@ package autoever_2st.project.external.entity.tmdb;
 
 import autoever_2st.project.common.entity.TimeStamp;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "tmdb_movie_video")
+@NoArgsConstructor
+@Getter
 public class TmdbMovieVideo extends TimeStamp {
 
     @Id

@@ -267,7 +267,7 @@ public class MovieController {
                 "Movie Title " + movieId,
                 movieId,
                 genres,
-                "http://image.tmdb.org/t/p/original/gDekB0OnIYbKhqzzdArfSQpcAvH.jpg",
+                "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                 8.5,
                 "한국",
                 "교도소에 수감 중인 빅토르(리베르토 리발)는 우연히 TV를 보다, 농구 스타이자 자신이 사랑한 엘레나(프란세스카 네리)의 남편이 되어있는 다비드(하비에르 바르뎀)를 보고 분노한다. 출소 후, 빅토르는 엘레나가 일하는 아동보호소에서 자원봉사 활동을 하며 그녀와 가까워질 기회를 노린다. 이 사실을 알게 된 다비드는 빅토르를 찾아가는데…",
@@ -280,7 +280,7 @@ public class MovieController {
                 directors,
                 actors,
                 "https://www.youtube.com/watch?v=8hP9D6kZseM",
-                "http://image.tmdb.org/t/p/original/ihFKthUgFqKIIsuwM9Dm7vr3QR0.jpg",
+                "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg",
                 stillcutPath,
                 120 + movieId.intValue(),
                 languages
