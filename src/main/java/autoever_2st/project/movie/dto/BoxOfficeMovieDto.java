@@ -16,9 +16,10 @@ public class BoxOfficeMovieDto {
     private Date release_date;
     private Long cumulativeAttendance;
     private List<DirectorDto> director;
+    private String posterPath;
 
-    public BoxOfficeMovieDto(Integer rank, Long movieId, List<String> genre, String title, 
-                            Date release_date, Long cumulativeAttendance, List<DirectorDto> director) {
+    public BoxOfficeMovieDto(Integer rank, Long movieId, List<String> genre, String title,
+                             Date release_date, Long cumulativeAttendance, List<DirectorDto> director, String posterPath) {
         this.rank = rank;
         this.movieId = movieId;
         this.genre = genre;
@@ -26,5 +27,6 @@ public class BoxOfficeMovieDto {
         this.release_date = release_date;
         this.cumulativeAttendance = cumulativeAttendance;
         this.director = director;
+        this.posterPath = posterPath;
     }
 }
