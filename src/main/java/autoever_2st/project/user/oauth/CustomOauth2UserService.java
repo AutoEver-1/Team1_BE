@@ -106,8 +106,12 @@ public class CustomOauth2UserService extends DefaultOAuth2UserService {
 
         String numericNickname = generateRandomNumericNickname(5);
 
-        Member member = userRepository.findByEmail(email);
-        if (member == null) {
+//        Member member = userRepository.findByEmail(email);
+//        if (member == null) {
+        Optional<Member> optionalMember = userRepository.findByEmail(email);
+
+        Member member;
+        if (optionalMember.isEmpty()) {
             // Role 엔티티에서 USER 권한 찾아오기
             Role userRole = roleRepository.findByName(RoleType.USER)
                     .orElseThrow(() -> new IllegalStateException("USER Role not found"));
@@ -124,6 +128,8 @@ public class CustomOauth2UserService extends DefaultOAuth2UserService {
                     .is_banned(false)
                     .build();
             userRepository.save(member);
+        } else {
+            member = optionalMember.get(); // 또는 orElseThrow 등으로 안전하게 꺼내기
         }
 
 

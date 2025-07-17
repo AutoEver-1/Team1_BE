@@ -14,6 +14,11 @@ public class CustomUserDetails implements UserDetails {
         this.member = member;
     }
 
+
+    public Member getMember() {
+        return member;
+    }
+
     // 현재 user의 role을 반환 (ex. "ROLE_ADMIN" / "ROLE_USER" 등)
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
