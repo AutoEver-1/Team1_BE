@@ -11,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 @Service
 public class UserService {
@@ -70,9 +71,17 @@ public class UserService {
 
     // 로그인 메서드 추가
     public Member login(LoginRequestDto loginRequestDto) {
-        Member member = userRepository.findByEmail(loginRequestDto.getEmail());
-        if (member != null && bCryptPasswordEncoder.matches(loginRequestDto.getPassword(), member.getPassword())) {
-            return member;
+//        Member member = userRepository.findByEmail(loginRequestDto.getEmail());
+//        if (member != null && bCryptPasswordEncoder.matches(loginRequestDto.getPassword(), member.getPassword())) {
+//            return member;
+//        }
+        Optional<Member> optionalMember = userRepository.findByEmail(loginRequestDto.getEmail());
+
+        if (optionalMember.isPresent()) {
+            Member member = optionalMember.get();
+            if (bCryptPasswordEncoder.matches(loginRequestDto.getPassword(), member.getPassword())) {
+                return member;
+            }
         }
         return null;
     }

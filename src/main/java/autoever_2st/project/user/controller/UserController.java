@@ -67,20 +67,6 @@ public class UserController {
         return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());
     }
 
-//    @PostMapping("/login")
-//    public ApiResponse<LoginResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
-//        LoginResponseDto loginResponseDto = new LoginResponseDto(
-//                1L,
-//                "user123",
-//                "male",
-//                "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
-//                "USER",
-//                "John Doe"
-//        );
-//
-//        return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());
-//    }
-
     @GetMapping("/oauth/login")
     public ApiResponse<LoginResponseDto> oauthLogin() {
         LoginResponseDto loginResponseDto = new LoginResponseDto(

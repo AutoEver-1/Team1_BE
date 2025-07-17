@@ -16,10 +16,14 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         // Member 엔티티에는 username 필드가 없고 email 필드가 있으므로 email 기준 조회
-        Member member = userRepository.findByEmail(username);
-        if (member == null) {
-            throw new UsernameNotFoundException("User not found with email: " + username);
-        }
+//        Member member = userRepository.findByEmail(username);
+//        if (member == null) {
+//            throw new UsernameNotFoundException("User not found with email: " + username);
+//        }
+        // email 기준으로 Member를 Optional로 조회 후 꺼냄
+        Member member = userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + username));
+
         return new CustomUserDetails(member);
     }
 

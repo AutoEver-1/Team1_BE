@@ -1,10 +1,15 @@
 package autoever_2st.project.review.controller;
 
 import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.review.Service.ReviewLikeService;
+import autoever_2st.project.review.Service.ReviewService;
 import autoever_2st.project.review.dto.ReviewDto;
 import autoever_2st.project.review.dto.request.ReviewRequestDto;
 import autoever_2st.project.review.dto.response.ReviewListResponseDto;
+import autoever_2st.project.user.Service.CustomUserDetails;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -13,16 +18,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/review")
 public class ReviewController {
 
+    private final ReviewService reviewService;
+    private final ReviewLikeService reviewLikeService;
+
     // 영화 리뷰 조회
     @GetMapping("/movie/{movieId}")
-    public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId) {
-        List<ReviewDto> reviewList = createMockReviewList(movieId, 5);
-        ReviewListResponseDto responseDto = new ReviewListResponseDto(reviewList);
-        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId,   @AuthenticationPrincipal CustomUserDetails userDetails){
+        Long loginMemberId = userDetails.getMember().getId();
+        List<ReviewDto> reviewList = reviewService.getReviewsByMovieId(movieId, loginMemberId);
+        return ApiResponse.success(new ReviewListResponseDto(reviewList), HttpStatus.OK.value());
     }
 
     // 영화 리뷰 등록
@@ -30,6 +39,7 @@ public class ReviewController {
     public ApiResponse<Void> createReview(
             @PathVariable Long movieId,
             @RequestBody ReviewRequestDto requestDto) {
+        reviewService.createReview(movieId, requestDto);
         return ApiResponse.success(null, HttpStatus.CREATED.value());
     }
 
@@ -38,24 +48,32 @@ public class ReviewController {
     public ApiResponse<Void> updateReview(
             @PathVariable Long movieId,
             @RequestBody ReviewRequestDto requestDto) {
+        reviewService.updateReview(movieId, requestDto);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // 영화 리뷰 삭제
     @DeleteMapping("/{reviewId}")
     public ApiResponse<Void> deleteReview(@PathVariable Long reviewId) {
+        reviewService.deleteReview(reviewId);
         return ApiResponse.success(null, HttpStatus.NO_CONTENT.value());
     }
 
     // 리뷰 좋아요 등록
     @PostMapping("/{reviewId}/like")
-    public ApiResponse<Void> likeReview(@PathVariable Long reviewId) {
+    public ApiResponse<Void> likeReview(@PathVariable Long reviewId,
+                                        @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long memberId = userDetails.getMember().getId();
+        reviewLikeService.likeReview(reviewId, memberId);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // 리뷰 좋아요 취소
     @DeleteMapping("/{reviewId}/like")
-    public ApiResponse<Void> unlikeReview(@PathVariable Long reviewId) {
+    public ApiResponse<Void> unlikeReview(@PathVariable Long reviewId,
+                                          @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long memberId = userDetails.getMember().getId();
+        reviewLikeService.unlikeReview(reviewId, memberId);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 

@@ -1,6 +1,7 @@
 package autoever_2st.project.security;
 
 import autoever_2st.project.user.Repository.RoleRepository;
+import autoever_2st.project.user.Repository.UserRepository;
 import autoever_2st.project.user.filter.JWTFilter;
 import autoever_2st.project.user.filter.LoginFilter;
 import autoever_2st.project.user.jwt.JWTUtil;
@@ -27,11 +28,13 @@ public class SecurityConfig {
     private final AuthenticationConfiguration configuration;
     private final JWTUtil jwtUtil;
     private final RoleRepository roleRepository;  // 추가
+    private final UserRepository userRepository;
 
-    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil,  RoleRepository roleRepository) {
+    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil,  RoleRepository roleRepository, UserRepository userRepository) {
         this.configuration = configuration;
         this.jwtUtil = jwtUtil;
         this.roleRepository = roleRepository;
+        this.userRepository = userRepository;
     }
 
     @Bean
@@ -62,7 +65,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authorize -> authorize
                         //.requestMatchers("/api/posts/**", "/api/likes/**").authenticated()
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs/swagger-config", "/swagger-resources/**", "/webjars/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs/swagger-config", "/swagger-resources/**", "/webjars/**", "/h2-console/**").permitAll()
                         .anyRequest().permitAll()
                 );
 
@@ -76,7 +79,8 @@ public class SecurityConfig {
         httpSecurity.addFilterAt(new LoginFilter(authenticationManager(configuration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
 
         // 로그인 필터 이전에 JWTFilter를 넣음
-        httpSecurity.addFilterBefore(new JWTFilter(jwtUtil, roleRepository), LoginFilter.class);
+       // httpSecurity.addFilterBefore(new JWTFilter(jwtUtil, roleRepository), LoginFilter.class);
+        httpSecurity.addFilterBefore(new JWTFilter(jwtUtil, roleRepository, userRepository), LoginFilter.class);
 
         // 로그아웃 URL 설정
         httpSecurity.logout((auth) -> auth.logoutUrl("/logout"));
