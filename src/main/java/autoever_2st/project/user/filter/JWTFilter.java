@@ -4,6 +4,7 @@ import autoever_2st.project.user.Entity.Member;
 import autoever_2st.project.user.Entity.Role;
 import autoever_2st.project.user.Entity.RoleType;
 import autoever_2st.project.user.Repository.RoleRepository;
+import autoever_2st.project.user.Repository.UserRepository;
 import autoever_2st.project.user.Service.CustomUserDetails;
 import autoever_2st.project.user.jwt.JWTUtil;
 import jakarta.servlet.FilterChain;
@@ -23,6 +24,7 @@ public class JWTFilter extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
     private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -64,13 +66,16 @@ public class JWTFilter extends OncePerRequestFilter {
         Role role = roleRepository.findByName(RoleType.valueOf(roleName))
                 .orElseThrow(() -> new RuntimeException("Role not found"));
 
-        Member member = new Member();
-        member.setEmail(loginId);
-        // 매번 요청마다 DB 조회해서 password 초기화 할 필요 x => 정확한 비밀번호 넣을 필요 없음
-        // 따라서 임시 비밀번호 설정!
-        member.setPassword("임시 비밀번호");
-        member.setRole(role);
+//        Member member = new Member();
+//        member.setEmail(loginId);
+//        // 매번 요청마다 DB 조회해서 password 초기화 할 필요 x => 정확한 비밀번호 넣을 필요 없음
+//        // 따라서 임시 비밀번호 설정!
+//        member.setPassword("임시 비밀번호");
+//        member.setRole(role);
 
+        // 회원 정보 DB에서 조회 (이메일 기준으로)
+        Member member = userRepository.findByEmail(loginId)
+                .orElseThrow(() -> new RuntimeException("Member not found"));
         // UserDetails에 회원 정보 객체 담기
         CustomUserDetails customUserDetails = new CustomUserDetails(member);
 
