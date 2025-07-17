@@ -1,6 +1,5 @@
 package autoever_2st.project.review.dto.request;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.LocalDate;

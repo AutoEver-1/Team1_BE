@@ -14,8 +14,6 @@ import autoever_2st.project.review.dto.request.ReviewRequestDto;
 import autoever_2st.project.review.dto.request.UserReviewDto;
 import autoever_2st.project.review.dto.request.UserReviewListResponseDto;
 import autoever_2st.project.user.Entity.Member;
-import autoever_2st.project.user.Entity.Role;
-import autoever_2st.project.user.Entity.RoleType;
 import autoever_2st.project.user.Repository.MemberGenrePreferenceRepository;
 import autoever_2st.project.user.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
