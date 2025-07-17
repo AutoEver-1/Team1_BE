@@ -41,4 +41,7 @@ public class Member {
     @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private JwtToken jwtToken;
 
+    public String getProfileImgUrl() {
+        return profile_img_url;
+    }
 }

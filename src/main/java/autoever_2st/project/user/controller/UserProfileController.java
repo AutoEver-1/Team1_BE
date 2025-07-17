@@ -4,17 +4,24 @@ import autoever_2st.project.common.dto.ApiResponse;
 import autoever_2st.project.movie.dto.DirectorDto;
 import autoever_2st.project.movie.dto.MovieDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
+import autoever_2st.project.review.Service.ReviewService;
+import autoever_2st.project.review.dto.request.UserReviewListResponseDto;
+import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
 import autoever_2st.project.user.dto.response.UserProfileDto;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/user")
 public class UserProfileController {
+
+    private final ReviewService reviewService;
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
@@ -66,6 +73,13 @@ public class UserProfileController {
     public ApiResponse<MovieListResponseDto> getDislikedMovies(@PathVariable Long memberId) {
         List<MovieDto> movieList = createMockMovieList(5);
         MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    //유저별 전체 영화 리뷰 조회
+    @GetMapping("/{memberId}/reviews")
+    public ApiResponse<UserReviewListResponseDto> getUserReviews(@PathVariable Long memberId) {
+        UserReviewListResponseDto responseDto = reviewService.getUserReviews(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
