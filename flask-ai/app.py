@@ -1,8 +1,10 @@
 # flask-ai/app.py
 from flask import Flask, request, jsonify
 from model.keyword_extractor import KeywordExtractor
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
 extractor = KeywordExtractor()
 
 @app.route("/")
