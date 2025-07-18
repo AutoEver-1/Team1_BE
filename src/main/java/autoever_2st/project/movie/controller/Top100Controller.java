@@ -15,7 +15,7 @@ import java.util.Date;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/movie")
+@RequestMapping("/movie")
 public class Top100Controller {
 
     @GetMapping("/top100")
