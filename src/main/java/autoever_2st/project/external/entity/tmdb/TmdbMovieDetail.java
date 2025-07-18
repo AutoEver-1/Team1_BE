@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Entity
@@ -41,7 +42,7 @@ public class TmdbMovieDetail extends TimeStamp {
     private String status;
 
     @Column(name = "release_date")
-    private LocalDate releaseDate;
+    private Date releaseDate;
 
     @Column(name = "runtime")
     private Integer runtime;
@@ -77,7 +78,7 @@ public class TmdbMovieDetail extends TimeStamp {
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MovieGenreMatch> movieGenreMatch = new ArrayList<>();
 
-    public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, LocalDate releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
+    public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, Date releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
         this.isAdult = isAdult;
         this.tmdbId = tmdbId;
         this.title = title;
