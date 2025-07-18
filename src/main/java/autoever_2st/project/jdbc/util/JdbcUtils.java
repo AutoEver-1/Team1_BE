@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.util.CollectionUtils;
 
+import java.sql.Connection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -29,16 +30,36 @@ public class JdbcUtils {
         }
 
         try {
+            try {
+                Boolean autoCommit = jdbcTemplate.execute((java.sql.Connection conn) -> conn.getAutoCommit());
+            } catch (Exception e) {
+                log.warn("auto commit 결정할 수 없음 : {}", e.getMessage());
+            }
+
             int[] updateCounts = jdbcTemplate.batchUpdate(sql, batchPreparedStatementSetter);
 
             try {
+                jdbcTemplate.execute((Connection conn) -> {
+                    if (!conn.getAutoCommit()) {
+                        conn.commit();
+                    } else {
+                    }
+                    return null;
+                });
+            } catch (Exception e) {
+                log.warn("커밋 force 실패 : {}", e.getMessage());
+            }
+
+            try {
                 jdbcTemplate.execute("SELECT 1");
+                log.info("플러시 성공");
             } catch (Exception e) {
                 log.warn("Failed to force database flush: {}", e.getMessage());
             }
 
             int totalUpdated = 0;
-            for (int count : updateCounts) {
+            for (int i = 0; i < updateCounts.length; i++) {
+                int count = updateCounts[i];
                 totalUpdated += count;
             }
 
@@ -59,7 +80,7 @@ public class JdbcUtils {
             String entityName) {
 
         if (CollectionUtils.isEmpty(ids)) {
-            log.warn("Empty IDs list, returning empty map");
+            log.warn("id list가 비어있습니다.");
             return Collections.emptyMap();
         }
 
@@ -78,7 +99,7 @@ public class JdbcUtils {
 
             return result;
         } catch (Exception e) {
-            log.error("Error executing query: {}", e.getMessage(), e);
+            log.error("쿼리 실행중 에러 발생: {}", e.getMessage(), e);
             return Collections.emptyMap();
         }
     }
