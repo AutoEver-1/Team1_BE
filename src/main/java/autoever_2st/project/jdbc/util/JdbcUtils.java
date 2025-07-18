@@ -52,7 +52,6 @@ public class JdbcUtils {
 
             try {
                 jdbcTemplate.execute("SELECT 1");
-                log.info("플러시 성공");
             } catch (Exception e) {
                 log.warn("Failed to force database flush: {}", e.getMessage());
             }
