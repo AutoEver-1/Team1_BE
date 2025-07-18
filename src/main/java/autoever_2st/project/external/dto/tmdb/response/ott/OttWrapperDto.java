@@ -21,5 +21,17 @@ public class OttWrapperDto {
     @JsonProperty("provider_id")
     private Integer providerId;
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OttWrapperDto that = (OttWrapperDto) o;
+        return providerId.equals(that.providerId);
+    }
+
+    @Override
+    public int hashCode() {
+        return providerId != null ? providerId.hashCode() : 0;
+    }
 
 }
