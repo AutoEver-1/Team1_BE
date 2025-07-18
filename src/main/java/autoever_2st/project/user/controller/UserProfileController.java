@@ -6,12 +6,15 @@ import autoever_2st.project.movie.dto.MovieDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
 import autoever_2st.project.review.Service.ReviewService;
 import autoever_2st.project.review.dto.request.UserReviewListResponseDto;
+import autoever_2st.project.user.Service.CustomUserDetails;
+import autoever_2st.project.user.Service.FollowService;
 import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
 import autoever_2st.project.user.dto.response.UserProfileDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -22,6 +25,7 @@ import java.util.*;
 public class UserProfileController {
 
     private final ReviewService reviewService;
+    private final FollowService followService;
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
@@ -30,17 +34,19 @@ public class UserProfileController {
         return ApiResponse.success(userProfile, HttpStatus.OK.value());
     }
 
-    // 유저 팔로우
+    // 유저 팔로우  //memberId를 팔로우
     @PostMapping("/{memberId}/follow")
-    public ApiResponse<Void> followUser(@PathVariable Long memberId) {
-        // Mock implementation
+    public ApiResponse<Void> follow(@AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long memberId) {
+        Long myId = userDetails.getMember().getId();
+        followService.follow(myId, memberId);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // 유저 팔로우 취소
     @DeleteMapping("/{memberId}/follow")
-    public ApiResponse<Void> unfollowUser(@PathVariable Long memberId) {
-        // Mock implementation
+    public ApiResponse<Void> unfollow(@AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long memberId) {
+        Long myId = userDetails.getMember().getId();
+        followService.unfollow(myId, memberId);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
