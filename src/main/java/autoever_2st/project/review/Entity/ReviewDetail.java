@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.ColumnDefault;
 
-import java.time.LocalDateTime;
+import java.util.Date;
 
 @Entity
 @Setter @Getter
@@ -20,7 +20,7 @@ public class ReviewDetail {
 
     private Double rating;
     private String content;
-    private LocalDateTime createdAt;
+    private Date createdAt;
     @ColumnDefault("false")
     private Boolean isBanned;
 
