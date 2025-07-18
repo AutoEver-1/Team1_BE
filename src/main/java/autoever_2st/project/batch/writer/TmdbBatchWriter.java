@@ -88,8 +88,6 @@ public class TmdbBatchWriter {
     @Transactional
     public ItemWriter<List<MovieGenre>> tmdbGenreWriter() {
         return genres -> {
-            log.info("tmdbGenreWriter called - starting transaction");
-
             if (genres == null || genres.isEmpty()) {
                 log.warn("No genres to process in tmdbGenreWriter");
                 return;
@@ -101,7 +99,6 @@ public class TmdbBatchWriter {
                 return;
             }
 
-            log.info("Processing {} genres", genreItems.size());
 
             // 장르 ID 목록 추출
             List<Long> genreIds = genreItems.stream()
@@ -125,22 +122,13 @@ public class TmdbBatchWriter {
 
             // 배치 작업 실행
             if (!newGenres.isEmpty()) {
-                log.info("Executing batch insert for {} new genres", newGenres.size());
                 int insertedCount = movieGenreDao.batchInsertGenres(newGenres);
-                log.info("Successfully inserted {} new genres", insertedCount);
-            } else {
-                log.info("No new genres to insert");
             }
 
             if (!updateGenres.isEmpty()) {
-                log.info("Executing batch update for {} existing genres", updateGenres.size());
                 int updatedCount = movieGenreDao.batchUpdateGenres(updateGenres, existingGenres);
-                log.info("Successfully updated {} existing genres", updatedCount);
-            } else {
-                log.info("No existing genres to update");
             }
 
-            log.info("tmdbGenreWriter completed - transaction will be committed");
         };
     }
 
@@ -154,7 +142,6 @@ public class TmdbBatchWriter {
     @Transactional
     public ItemWriter<List<OttPlatform>> tmdbOttPlatformWriter() {
         return ottPlatforms -> {
-            log.info("tmdbOttPlatformWriter called - starting transaction");
 
             if (ottPlatforms == null || ottPlatforms.isEmpty()) {
                 log.warn("No OTT platforms to process in tmdbOttPlatformWriter");
@@ -167,8 +154,6 @@ public class TmdbBatchWriter {
                 log.warn("No items in the OTT platforms to process in tmdbOttPlatformWriter");
                 return;
             }
-
-            log.info("Processing {} OTT platforms", ottPlatformItems.size());
 
             // OTT 플랫폼 ID 목록 추출
             List<Long> ottPlatformIds = ottPlatformItems.stream()
@@ -192,22 +177,13 @@ public class TmdbBatchWriter {
 
             // 배치 작업 실행
             if (!newOttPlatforms.isEmpty()) {
-                log.info("Executing batch insert for {} new OTT platforms", newOttPlatforms.size());
                 int insertedCount = ottPlatformDao.batchInsertOttPlatforms(newOttPlatforms);
-                log.info("Successfully inserted {} new OTT platforms", insertedCount);
-            } else {
-                log.info("No new OTT platforms to insert");
             }
 
             if (!updateOttPlatforms.isEmpty()) {
-                log.info("Executing batch update for {} existing OTT platforms", updateOttPlatforms.size());
                 int updatedCount = ottPlatformDao.batchUpdateOttPlatforms(updateOttPlatforms, existingOttPlatforms);
-                log.info("Successfully updated {} existing OTT platforms", updatedCount);
-            } else {
-                log.info("No existing OTT platforms to update");
             }
 
-            log.info("tmdbOttPlatformWriter completed - transaction will be committed");
         };
     }
 
@@ -220,28 +196,17 @@ public class TmdbBatchWriter {
      */
     public ItemWriter<Map<Long, List<Long>>> movieWatchProvidersWriter() {
         return items -> {
-            log.info("movieWatchProvidersWriter called - creating transaction template");
-            System.out.println("DEBUG: movieWatchProvidersWriter called - creating transaction template");
 
-            // Create a transaction template
             TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-            System.out.println("DEBUG: Transaction template created");
 
-            // Execute in a transaction
             transactionTemplate.execute(new TransactionCallbackWithoutResult() {
                 @Override
                 protected void doInTransactionWithoutResult(TransactionStatus status) {
-                    log.info("Transaction started with status: {}", status);
-                    System.out.println("DEBUG: Transaction started with status: " + status);
-
                     if (items == null || items.isEmpty()) {
                         log.warn("No movie watch providers to save");
-                        System.out.println("DEBUG: No movie watch providers to save");
                         return;
                     }
 
-                    log.info("Saving watch providers for {} maps", items.size());
-                    System.out.println("DEBUG: Saving watch providers for " + items.size() + " maps");
 
                     int totalSaved = 0;
                     int totalMovies = 0;
@@ -249,33 +214,21 @@ public class TmdbBatchWriter {
                     for (Map<Long, List<Long>> movieToOttPlatformsMap : items) {
                         if (movieToOttPlatformsMap == null || movieToOttPlatformsMap.isEmpty()) {
                             log.warn("Empty movie watch providers map");
-                            System.out.println("DEBUG: Empty movie watch providers map");
                             continue;
                         }
 
                         totalMovies += movieToOttPlatformsMap.size();
-                        log.info("Processing map with {} movies", movieToOttPlatformsMap.size());
-                        System.out.println("DEBUG: Processing map with " + movieToOttPlatformsMap.size() + " movies");
 
                         for (Map.Entry<Long, List<Long>> entry : movieToOttPlatformsMap.entrySet()) {
                             Long tmdbMovieDetailId = entry.getKey();
                             List<Long> ottPlatformIds = entry.getValue();
-                            System.out.println("DEBUG: Processing entry with movie ID " + tmdbMovieDetailId + " and " + 
-                                    (ottPlatformIds != null ? ottPlatformIds.size() : "null") + " OTT platform IDs");
 
                             if (ottPlatformIds == null || ottPlatformIds.isEmpty()) {
                                 log.warn("No OTT platforms to save for movie ID {}", tmdbMovieDetailId);
-                                System.out.println("DEBUG: No OTT platforms to save for movie ID " + tmdbMovieDetailId);
                                 continue;
                             }
 
-                            log.info("Saving {} OTT platforms for movie ID {}", ottPlatformIds.size(), tmdbMovieDetailId);
-                            log.info("OTT platform IDs to save for movie ID {}: {}", tmdbMovieDetailId, ottPlatformIds);
-                            System.out.println("DEBUG: Saving " + ottPlatformIds.size() + " OTT platforms for movie ID " + tmdbMovieDetailId);
-                            System.out.println("DEBUG: OTT platform IDs to save for movie ID " + tmdbMovieDetailId + ": " + ottPlatformIds);
-
                             try {
-                                // Batch insert all OTT platforms for the movie
                                 int savedCount = tmdbMovieDetailOttDao.batchInsertMovieDetailOttsForMovie(tmdbMovieDetailId, ottPlatformIds);
                                 totalSaved += savedCount;
 
@@ -285,98 +238,31 @@ public class TmdbBatchWriter {
                                 } else if (savedCount < ottPlatformIds.size()) {
                                     log.warn("Saved only {} out of {} OTT platforms for movie ID {}", 
                                             savedCount, ottPlatformIds.size(), tmdbMovieDetailId);
-                                } else {
-                                    log.info("Successfully saved {} OTT platforms for movie ID {}", savedCount, tmdbMovieDetailId);
                                 }
                             } catch (Exception e) {
                                 log.error("Error saving OTT platforms for movie ID {}: {}", tmdbMovieDetailId, e.getMessage(), e);
                             }
                         }
                     }
-
-                    log.info("Transaction about to complete with {} total saved items", totalSaved);
-
-                    // Force a flush by executing a simple query
                     try {
                         jdbcTemplate.execute("SELECT 1");
-                        log.info("Database flush forced successfully within transaction");
                     } catch (Exception e) {
                         log.warn("Failed to force database flush within transaction: {}", e.getMessage());
                     }
                 }
             });
 
-            // After transaction completes, verify the data was saved
-            log.info("Transaction completed, verifying data was saved");
-
-            // Execute a simple query outside the transaction to verify data was committed
             try {
                 Integer totalCount = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM tmdb_movie_detail_ott",
                     Integer.class
                 );
-                log.info("Total records in tmdb_movie_detail_ott table after transaction: {}", totalCount);
             } catch (Exception e) {
                 log.error("Error verifying total record count: {}", e.getMessage(), e);
             }
 
-            log.info("movieWatchProvidersWriter completed - transaction has been committed");
         };
     }
-
-
-
-    /**
-     * 영화 이미지 정보를 저장하는 Writer
-     * 
-     * 이 메서드는 영화 이미지 목록을 받아 TmdbMovieImages 엔티티로 변환하고 저장합니다.
-     * 
-     * @param movieId 영화 ID
-     * @return 영화 이미지 정보를 저장하는 ItemWriter
-     */
-    @Transactional
-    public ItemWriter<List<TmdbMovieImages>> tmdbMovieImagesWriter(Long movieId) {
-        return images -> {
-            log.info("tmdbMovieImagesWriter called for movie ID {}", movieId);
-
-            if (images == null || images.isEmpty()) {
-                log.warn("No images to process for movie ID {}", movieId);
-                return;
-            }
-
-            List<TmdbMovieImages> imageItems = images.getItems().get(0);
-            if (imageItems == null || imageItems.isEmpty()) {
-                log.warn("No items in the images to process for movie ID {}", movieId);
-                return;
-            }
-
-            log.info("Processing {} images for movie ID {}", imageItems.size(), movieId);
-
-            // 영화 상세 정보 ID 조회
-            Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetailMap = tmdbMovieDetailDao.findExistingMovieDetails(List.of(movieId));
-            if (movieDetailMap.isEmpty() || !movieDetailMap.containsKey(movieId)) {
-                log.warn("Movie detail not found for TMDB ID {}. Cannot save images.", movieId);
-                return;
-            }
-
-            Long tmdbMovieDetailId = movieDetailMap.get(movieId).getId();
-            log.info("Found movie detail ID {} for TMDB ID {}", tmdbMovieDetailId, movieId);
-
-            // 이미지 저장
-            int savedCount = tmdbMovieImagesDao.batchInsertMovieImages(imageItems, tmdbMovieDetailId);
-
-            if (savedCount == 0) {
-                log.warn("Failed to save any images for movie ID {}. Expected to save {}", 
-                        movieId, imageItems.size());
-            } else if (savedCount < imageItems.size()) {
-                log.warn("Saved only {} out of {} images for movie ID {}", 
-                        savedCount, imageItems.size(), movieId);
-            } else {
-                log.info("Successfully saved {} images for movie ID {}", savedCount, movieId);
-            }
-        };
-    }
-
 
     /**
      * 여러 영화의 이미지 정보를 저장하는 Writer
@@ -388,7 +274,6 @@ public class TmdbBatchWriter {
     @Transactional
     public ItemWriter<List<TmdbMovieImages>> tmdbMovieImagesListWriter() {
         return images -> {
-            log.info("tmdbMovieImagesListWriter called");
 
             if (images == null || images.isEmpty()) {
                 log.warn("No images to process");
@@ -400,8 +285,6 @@ public class TmdbBatchWriter {
                 log.warn("No items in the images to process");
                 return;
             }
-
-            log.info("Processing {} images", imageItems.size());
 
             // 이미지를 영화 ID별로 그룹화
             Map<Long, List<TmdbMovieImages>> imagesByMovieId = new HashMap<>();
@@ -437,7 +320,6 @@ public class TmdbBatchWriter {
                 }
 
                 Long tmdbMovieDetailId = movieDetailMap.get(movieId).getId();
-                log.info("Found movie detail ID {} for TMDB ID {}", tmdbMovieDetailId, movieId);
 
                 // 이미지 저장
                 int savedCount = tmdbMovieImagesDao.batchInsertMovieImages(movieImages, tmdbMovieDetailId);
@@ -449,12 +331,8 @@ public class TmdbBatchWriter {
                 } else if (savedCount < movieImages.size()) {
                     log.warn("Saved only {} out of {} images for movie ID {}", 
                             savedCount, movieImages.size(), movieId);
-                } else {
-                    log.info("Successfully saved {} images for movie ID {}", savedCount, movieId);
                 }
             }
-
-            log.info("Successfully saved a total of {} images for {} movies", totalSavedCount, movieIds.size());
         };
     }
 
@@ -469,7 +347,6 @@ public class TmdbBatchWriter {
     @Transactional
     public ItemWriter<List<TmdbMovieVideo>> tmdbMovieVideoListWriter() {
         return videos -> {
-            log.info("tmdbMovieVideoListWriter called");
 
             if (videos == null || videos.isEmpty()) {
                 log.warn("No videos to process");
@@ -481,8 +358,6 @@ public class TmdbBatchWriter {
                 log.warn("No items in the videos to process");
                 return;
             }
-
-            log.info("Processing {} videos", videoItems.size());
 
             // 비디오를 영화 ID별로 그룹화
             Map<Long, List<TmdbMovieVideo>> videosByMovieId = new HashMap<>();
@@ -518,7 +393,6 @@ public class TmdbBatchWriter {
                 }
 
                 Long tmdbMovieDetailId = movieDetailMap.get(movieId).getId();
-                log.info("Found movie detail ID {} for TMDB ID {}", tmdbMovieDetailId, movieId);
 
                 // 비디오 저장
                 int savedCount = tmdbMovieVideoDao.batchInsertMovieVideos(movieVideos, tmdbMovieDetailId);
@@ -530,8 +404,6 @@ public class TmdbBatchWriter {
                 } else if (savedCount < movieVideos.size()) {
                     log.warn("Saved only {} out of {} videos for movie ID {}", 
                             savedCount, movieVideos.size(), movieId);
-                } else {
-                    log.info("Successfully saved {} videos for movie ID {}", savedCount, movieId);
                 }
             }
 
@@ -551,7 +423,6 @@ public class TmdbBatchWriter {
     @Transactional
     public ItemWriter<List<TmdbMovieVideo>> tmdbMovieVideoWriter(Long movieId) {
         return videos -> {
-            log.info("tmdbMovieVideoWriter called for movie ID {}", movieId);
 
             if (videos == null || videos.isEmpty()) {
                 log.warn("No videos to process for movie ID {}", movieId);
@@ -564,8 +435,6 @@ public class TmdbBatchWriter {
                 return;
             }
 
-            log.info("Processing {} videos for movie ID {}", videoItems.size(), movieId);
-
             // 영화 상세 정보 ID 조회
             Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetailMap = tmdbMovieDetailDao.findExistingMovieDetails(List.of(movieId));
             if (movieDetailMap.isEmpty() || !movieDetailMap.containsKey(movieId)) {
@@ -574,7 +443,6 @@ public class TmdbBatchWriter {
             }
 
             Long tmdbMovieDetailId = movieDetailMap.get(movieId).getId();
-            log.info("Found movie detail ID {} for TMDB ID {}", tmdbMovieDetailId, movieId);
 
             // 비디오 저장
             int savedCount = tmdbMovieVideoDao.batchInsertMovieVideos(videoItems, tmdbMovieDetailId);
@@ -585,8 +453,6 @@ public class TmdbBatchWriter {
             } else if (savedCount < videoItems.size()) {
                 log.warn("Saved only {} out of {} videos for movie ID {}", 
                         savedCount, videoItems.size(), movieId);
-            } else {
-                log.info("Successfully saved {} videos for movie ID {}", savedCount, movieId);
             }
         };
     }
@@ -624,9 +490,7 @@ public class TmdbBatchWriter {
         // 4. 배치 작업 실행
         List<Long> insertedTmdbMovieDetailIds = new ArrayList<>();
         if (!newItems.isEmpty()) {
-            log.info("Executing batch insert for {} new items", newItems.size());
             int insertedCount = tmdbMovieDetailDao.batchInsertItems(newItems);
-            log.info("Successfully inserted {} new items", insertedCount);
 
             // 새로 삽입된 항목의 ID 조회
             Map<Long, TmdbMovieDetailDao.MovieDetailInfo> newItemsInfo = tmdbMovieDetailDao.findExistingMovieDetails(
@@ -637,22 +501,16 @@ public class TmdbBatchWriter {
             insertedTmdbMovieDetailIds = newItemsInfo.values().stream()
                     .map(TmdbMovieDetailDao.MovieDetailInfo::getId)
                     .collect(Collectors.toList());
-        } else {
-            log.info("No new items to insert");
         }
 
         List<Long> updatedTmdbMovieDetailIds = new ArrayList<>();
         if (!updateItems.isEmpty()) {
-            log.info("Executing batch update for {} existing items", updateItems.size());
             int updatedCount = tmdbMovieDetailDao.batchUpdateItems(updateItems, existingDetails);
-            log.info("Successfully updated {} existing items", updatedCount);
 
             // 업데이트된 TmdbMovieDetail ID 목록 추출
             updatedTmdbMovieDetailIds = updateItems.stream()
                     .map(item -> existingDetails.get(item.getTmdbId()).getId())
                     .collect(Collectors.toList());
-        } else {
-            log.info("No existing items to update");
         }
 
         // 5. Movie 엔티티 생성 및 연결
@@ -669,16 +527,12 @@ public class TmdbBatchWriter {
                     .collect(Collectors.toList());
 
             if (!newMovieTmdbDetailIds.isEmpty()) {
-                log.info("Creating {} new Movie entities", newMovieTmdbDetailIds.size());
                 int insertedMovieCount = movieDao.batchInsertMovies(newMovieTmdbDetailIds);
-                log.info("Successfully created {} new Movie entities", insertedMovieCount);
             }
 
             // 기존 Movie 엔티티 업데이트
             if (!existingMovies.isEmpty()) {
-                log.info("Updating {} existing Movie entities", existingMovies.size());
                 int updatedMovieCount = movieDao.batchUpdateMovies(existingMovies);
-                log.info("Successfully updated {} existing Movie entities", updatedMovieCount);
             }
 
             // 6. MovieGenreMatch 엔티티 생성 및 연결
@@ -692,7 +546,6 @@ public class TmdbBatchWriter {
                         genre -> genre,
                         (existing, replacement) -> existing)); // 중복 시 기존 항목 유지
 
-            log.info("Found {} genres in the database", allGenres.size());
 
             // 7. 모든 OTT 플랫폼 조회
             List<OttPlatformDao.OttPlatformInfo> allOttPlatforms = ottPlatformDao.findAllOttPlatforms();
@@ -704,7 +557,6 @@ public class TmdbBatchWriter {
                         ottPlatform -> ottPlatform,
                         (existing, replacement) -> existing)); // 중복 시 기존 항목 유지
 
-            log.info("Found {} OTT platforms in the database", allOttPlatforms.size());
 
             // 각 영화에 대해 장르 매핑 및 OTT 플랫폼 매핑 생성
             for (TmdbMovieDetail movieDetail : chunk) {
@@ -739,20 +591,12 @@ public class TmdbBatchWriter {
                     }
 
                     if (!movieGenreDbIds.isEmpty()) {
-                        log.info("Creating MovieGenreMatch entities for movie {} with {} genres", 
-                                movieDetail.getTitle(), movieGenreDbIds.size());
                         int insertedMatchCount = movieGenreMatchDao.batchInsertGenreMatchesForMovie(tmdbMovieDetailId, movieGenreDbIds);
-                        log.info("Successfully created {} MovieGenreMatch entities for movie {}", 
-                                insertedMatchCount, movieDetail.getTitle());
-                    } else {
-                        log.warn("No matching genres found in database for movie: {}", movieDetail.getTitle());
                     }
                 } else {
                     log.warn("No genre IDs found for movie: {}", movieDetail.getTitle());
                 }
 
-                // OTT 플랫폼 ID는 별도의 배치 단계에서 getMovieWatchProviders 메소드를 통해 가져와서 처리됩니다.
-                // TmdbMovieDetail API는 ottIds를 제공하지 않으므로 여기서는 처리하지 않습니다.
             }
         }
     }
