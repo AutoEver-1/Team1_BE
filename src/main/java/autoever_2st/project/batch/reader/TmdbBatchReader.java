@@ -1,0 +1,742 @@
+package autoever_2st.project.batch.reader;
+
+import autoever_2st.project.batch.component.TmdbBatchComponent;
+import autoever_2st.project.batch.dto.MovieImagesDto;
+import autoever_2st.project.batch.dto.MovieVideosDto;
+import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
+import autoever_2st.project.external.component.impl.tmdb.TmdbMovieApiComponentImpl;
+import autoever_2st.project.external.dto.tmdb.common.movie.DiscoverMovieWrapperDto;
+import autoever_2st.project.external.dto.tmdb.response.movie.*;
+import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
+import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
+import autoever_2st.project.external.repository.tmdb.TmdbMovieDetailRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.support.ListItemReader;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * TMDb API에서 영화 데이터를 페이지 단위로 읽어오는 Reader
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class TmdbBatchReader {
+
+    private final TmdbBatchComponent tmdbBatchComponent;
+    private final TmdbMovieDetailRepository tmdbMovieDetailRepository;
+    private final TmdbMovieApiComponentImpl tmdbMovieApiComponent;
+
+    // 페이지 크기 상수 - TMDb API의 기본값은 20
+    private static final int PAGE_SIZE = 20;
+
+    // 병렬 처리를 위한 스레드 수 - API 제한(10초당 40회)을 고려하여 설정
+    private static final int THREAD_COUNT = 20;
+
+    // 배치 크기 - API 제한(10초당 40회)을 고려하여 39로 설정
+    private static final int BATCH_SIZE = 39;
+
+    /**
+     * 현재 상영중인 영화 데이터를 병렬로 읽어오는 Reader
+     * 각 배치(40페이지)를 로드한 후 즉시 반환하여 데이터베이스에 저장하고, 그 후에 다음 배치를 로드하는 방식으로 메모리 사용량을 최적화.
+     * 
+     * @return 영화 데이터를 반환하는 ItemReader
+     */
+    public ItemReader<List<MovieResponseDto>> parallelMoviePageReader() {
+        // 첫 페이지를 가져와서 총 페이지 수 확인
+        DiscoverMovieWrapperDto firstPage = tmdbBatchComponent.getTmdbMovieApiComponent().getDiscoverMovieList(1);
+        int totalPages = firstPage.getTotalPages() > 500 ? 500 : firstPage.getTotalPages();
+
+        List<MovieResponseDto> firstPageResults = firstPage.getResults();
+
+        final AtomicInteger currentBatch = new AtomicInteger(0);
+        final int totalBatches = (int) Math.ceil((totalPages - 1) / (double) BATCH_SIZE);
+
+        // 첫 번째 배치는 첫 페이지 결과
+        final List<MovieResponseDto> firstBatch = new ArrayList<>(firstPageResults);
+
+        return new ItemReader<List<MovieResponseDto>>() {
+            private boolean firstBatchReturned = false;
+            private boolean isCompleted = false;
+            private ExecutorService executor = null;
+
+            @Override
+            public List<MovieResponseDto> read() {
+                if (isCompleted) {
+                    return null;
+                }
+
+                // 첫 번째 배치는 이미 로드된 첫 페이지 결과 반환
+                if (!firstBatchReturned) {
+                    firstBatchReturned = true;
+                    log.info("{}개 항목으로 첫 번째 배치 처리", firstBatch.size());
+                    return firstBatch;
+                }
+
+                // 현재 배치 번호 가져오기
+                int batchIndex = currentBatch.getAndIncrement();
+
+                // 모든 배치를 처리했으면 종료
+                if (batchIndex >= totalBatches) {
+                    log.info("Completed processing all {} batches", totalBatches + 1);
+                    if (executor != null) {
+                        executor.shutdown(); // 모든 작업이 완료되면 스레드 풀 종료
+                    }
+                    isCompleted = true;
+                    return null;
+                }
+
+                // 배치 사이에 잠시 대기하여 API 레이트 리밋 준수
+                if (batchIndex > 0) {
+                    try {
+                        Thread.sleep(10000); // 10초 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while waiting between batches", e);
+                    }
+                }
+
+                // 현재 배치의 페이지 범위 계산
+                int startPage = 2 + (batchIndex * BATCH_SIZE);
+                int endPage = Math.min(startPage + BATCH_SIZE - 1, totalPages);
+
+                log.info("{} Batch에서 {}로 페이지 배치 {}를 로드.", batchIndex + 1, startPage, endPage);
+
+                // 스레드 풀 생성 - 각 배치마다 새로운 스레드 풀 생성하여 메모리 누수 방지
+                executor = Executors.newFixedThreadPool(THREAD_COUNT);
+
+                // 현재 배치의 모든 페이지에 대한 Future 생성
+                List<CompletableFuture<List<MovieResponseDto>>> futures = new ArrayList<>();
+
+                for (int page = startPage; page <= endPage; page++) {
+                    final int currentPage = page;
+                    CompletableFuture<List<MovieResponseDto>> future = CompletableFuture.supplyAsync(() -> {
+                        try {
+                            List<MovieResponseDto> pageItems = tmdbBatchComponent.fetchMovieDiscover(currentPage);
+                            log.info("{}개 항목이 있는 {}/{} 페이지가 로드됨.", currentPage, totalPages,
+                                    pageItems != null ? pageItems.size() : 0);
+                            return pageItems;
+                        } catch (Exception e) {
+                            log.error("페이지 {}을(를) 로드하는 중 오류 발생: {}", currentPage, e.getMessage(), e);
+                            return new ArrayList<>();
+                        }
+                    }, executor);
+
+                    futures.add(future);
+
+                    // 각 API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
+                    try {
+                        Thread.sleep(50); // 50ms 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while waiting between API calls", e);
+                    }
+                }
+
+                // 모든 Future 결과 수집
+                List<MovieResponseDto> batchItems = new ArrayList<>();
+                for (CompletableFuture<List<MovieResponseDto>> future : futures) {
+                    try {
+                        List<MovieResponseDto> pageItems = future.get();
+                        if (pageItems != null && !pageItems.isEmpty()) {
+                            batchItems.addAll(pageItems);
+                        }
+                    } catch (Exception e) {
+                        log.error("Error getting future result: {}", e.getMessage(), e);
+                    }
+                }
+
+                // 현재 배치 처리 완료 후 스레드 풀 종료
+                executor.shutdown();
+
+                log.info("{}-{}페이지에서 {}개 항목이 포함된 배치 {} 완료.",
+                        batchIndex + 1, batchItems.size(), startPage, endPage);
+
+                // 빈 배치는 null 반환하여 처리 종료
+                if (batchItems.isEmpty()) {
+                    log.warn("페이지 {}에서 {}까지 배치에서 항목을 찾을 수 없음.", startPage, endPage);
+                    return read(); // 다음 배치 시도
+                }
+
+                return batchItems;
+            }
+        };
+    }
+
+//    /**
+//     * 인기 영화 ID 목록을 페이지 단위로 읽어오는 Reader
+//     */
+//    public ItemStreamReader<Integer> popularMovieIdsReader() {
+//        // 총 페이지 수를 제한하여 처리 (예: 최대 10페이지)
+//        int maxPages = 10;
+//
+//        log.info("Starting to read popular movies. Max pages: {}, estimated items: {}",
+//                maxPages, maxPages * PAGE_SIZE);
+//
+//        return new PagingPopularMovieReader(maxPages);
+//    }
+
+    /**
+     * Genre를 가져오는 Reader
+     * 영화와 TV 장르 목록을 가져와 중복을 제거한 후 반환.
+     *
+     * @return 장르 데이터를 반환하는 ItemReader
+     */
+    public ItemReader<List<GenreDto>> genreReader() {
+        List<GenreDto> genreList = tmdbBatchComponent.fetchGenreList();
+        log.info("일괄 처리를 위해 로드된 {} 장르", genreList.size());
+
+        // 빈 리스트가 아닌 경우에만 리스트를 포함하는 단일 요소 리스트 생성
+        List<List<GenreDto>> wrappedList = new ArrayList<>();
+        if (!genreList.isEmpty()) {
+            wrappedList.add(genreList);
+        }
+
+        return new ListItemReader<>(wrappedList);
+    }
+
+    /**
+     * OTT 플랫폼을 가져오는 Reader
+     * 영화와 TV OTT 플랫폼 목록을 가져와 중복을 제거한 후 반환.
+     *
+     * @return OTT 플랫폼 데이터를 반환하는 ItemReader
+     */
+    public ItemReader<List<OttWrapperDto>> ottReader() {
+        List<OttWrapperDto> ottList = tmdbBatchComponent.fetchOttList();
+        log.info("일괄 처리를 위한 {} OTT 플랫폼 로드됨", ottList.size());
+
+        // 빈 리스트가 아닌 경우에만 리스트를 포함하는 단일 요소 리스트 생성
+        List<List<OttWrapperDto>> wrappedList = new ArrayList<>();
+        if (!ottList.isEmpty()) {
+            wrappedList.add(ottList);
+        }
+
+        return new ListItemReader<>(wrappedList);
+    }
+
+    @Bean
+    @StepScope
+    @Lazy
+    public ItemReader<List<MovieWatchProvidersDto>> movieWatchProvidersReader() {
+        // 매번 새로운 Reader 인스턴스 생성
+        return createReader();
+    }
+
+    /**
+     * 영화 OTT 제공자 정보를 병렬로 읽어오는 Reader
+     * TmdbMovieDetail 엔티티를 배치로 가져와서 각 영화의 OTT 제공자 정보를 병렬로 조회.
+     *
+     * @return 영화 OTT 제공자 정보를 반환하는 ItemReader
+     */
+    public ItemReader<List<MovieWatchProvidersDto>> createReader() {
+        // 총 영화 수 확인
+        long totalMovies = tmdbMovieDetailRepository.count();
+        log.info("총 영화 수: {}", totalMovies);
+
+        final int totalBatches = (int) Math.ceil(totalMovies / (double) BATCH_SIZE);
+
+        final AtomicInteger currentBatch = new AtomicInteger(0);
+
+        return new ItemReader<List<MovieWatchProvidersDto>>() {
+            private boolean isCompleted = false;
+            private ExecutorService executor = null;
+
+            @Override
+            public List<MovieWatchProvidersDto> read() {
+                if (isCompleted) {
+                    return null;
+                }
+
+                // 현재 배치 번호 가져오기
+                int batchIndex = currentBatch.getAndIncrement();
+
+                // 모든 배치를 처리했으면 종료
+                if (batchIndex >= totalBatches) {
+                    log.info("모든 {} 배치 처리 완료됨.", totalBatches);
+                    if (executor != null) {
+                        executor.shutdown(); // 모든 작업이 완료되면 스레드 풀 종료
+                    }
+                    isCompleted = true;
+                    return null;
+                }
+
+                // 배치 사이에 잠시 대기하여 API 레이트 리밋 준수 (첫 배치는 제외)
+                if (batchIndex > 0) {
+                    try {
+                        log.info("API 속도 제한을 준수하기 위해 배치 사이에 10초간 대기");
+                        Thread.sleep(10000); // 10초 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("배치 사이 대기 중 중단됨", e);
+                    }
+                }
+
+                // 현재 배치의 영화 범위 계산
+                int startIndex = batchIndex * BATCH_SIZE;
+                int endIndex = Math.min(startIndex + BATCH_SIZE, (int) totalMovies);
+
+                log.info("{}의 {} 배치 처리 중(영화 {}-{})",
+                        batchIndex + 1, totalBatches, startIndex, endIndex - 1);
+
+                // 현재 배치의 영화 목록 가져오기
+                Pageable pageable = PageRequest.of(startIndex / PAGE_SIZE, PAGE_SIZE);
+                List<TmdbMovieDetail> batchMovies = new ArrayList<>();
+
+                // 현재 배치에 필요한 페이지들을 순차적으로 로드
+                int remainingMovies = endIndex - startIndex;
+                int currentPageIndex = startIndex / PAGE_SIZE;
+
+                while (remainingMovies > 0) {
+                    pageable = PageRequest.of(currentPageIndex, PAGE_SIZE);
+                    Page<TmdbMovieDetail> moviePage = tmdbMovieDetailRepository.findAll(pageable);
+                    List<TmdbMovieDetail> pageMovies = moviePage.getContent();
+
+                    if (pageMovies.isEmpty()) {
+                        log.warn("{} page에서 영화 찾을수없음", currentPageIndex);
+                        currentPageIndex++;
+                        continue;
+                    }
+
+                    // 첫 페이지에서는 시작 인덱스에 해당하는 영화부터 추가
+                    if (currentPageIndex == startIndex / PAGE_SIZE) {
+                        int startOffset = startIndex % PAGE_SIZE;
+                        int count = Math.min(pageMovies.size() - startOffset, remainingMovies);
+                        for (int i = startOffset; i < startOffset + count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    } else {
+                        // 이후 페이지에서는 필요한 만큼만 추가
+                        int count = Math.min(pageMovies.size(), remainingMovies);
+                        for (int i = 0; i < count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    }
+
+                    currentPageIndex++;
+
+                    // 다음 페이지가 필요한 경우 짧은 지연 추가
+                    if (remainingMovies > 0) {
+                        try {
+                            Thread.sleep(100); // 100ms 대기
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.error("페이지 로드 사이에 대기하는 동안 중단됨", e);
+                        }
+                    }
+                }
+
+                log.info("배치 {}에 대한 {}개의 영화를 로드", batchMovies.size(), batchIndex + 1);
+
+                if (batchMovies.isEmpty()) {
+                    log.warn("{} 배치에 Movie 없음", batchIndex + 1);
+                    return read(); // 다음 배치 시도
+                }
+
+                executor = Executors.newFixedThreadPool(THREAD_COUNT);
+
+                List<CompletableFuture<MovieWatchProvidersDto>> futures = new ArrayList<>();
+
+                for (TmdbMovieDetail movie : batchMovies) {
+                    CompletableFuture<MovieWatchProvidersDto> future = CompletableFuture.supplyAsync(() -> {
+                        try {
+                            Set<WatchProvidersDto.ProviderInner> providers = tmdbMovieApiComponent.getMovieWatchProviders(movie.getTmdbId());
+                            if (providers == null || providers.isEmpty()) {
+                                return null;
+                            } else {
+                                return new MovieWatchProvidersDto(movie.getId(), movie.getTmdbId(), providers);
+                            }
+                        } catch (Exception e) {
+                            log.error("영화 ID {}에 대한 시청 제공자를 로드하는 중 오류 발생: {}}", movie.getTmdbId(), e.getMessage(), e);
+                            return null;
+                        }
+                    }, executor);
+
+                    futures.add(future);
+
+                    // 각 API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
+                    try {
+                        Thread.sleep(50); // 50ms 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("API 호출 사이에 대기하는 동안 중단됨", e);
+                    }
+                }
+
+                // 모든 Future 결과 수집
+                List<MovieWatchProvidersDto> batchResults = new ArrayList<>();
+                for (CompletableFuture<MovieWatchProvidersDto> future : futures) {
+                    try {
+                        MovieWatchProvidersDto item = future.get();
+                        if (item != null && item.getProviders() != null && !item.getProviders().isEmpty()) {
+                            batchResults.add(item);
+                        }
+                    } catch (Exception e) {
+                        log.error("future 결과를 가져오는 중 오류가 발생했습니다: {}", e.getMessage(), e);
+                    }
+                }
+                executor.shutdown();
+
+                if (batchResults.isEmpty()) {
+                    return read();
+                }
+
+                return batchResults;
+            }
+        };
+    }
+
+    /**
+     * 영화 이미지 정보를 병렬로 읽어오는 Reader
+     * TmdbMovieDetail 엔티티를 배치로 가져와서 각 영화의 이미지 정보를 병렬로 조회.
+     *
+     * @return 영화 이미지 정보를 반환하는 ItemReader
+     */
+    public ItemReader<List<MovieImagesDto>> parallelMovieImagesReader() {
+        // 총 영화 수 확인
+        long totalMovies = tmdbMovieDetailRepository.count();
+        log.info("총 영화 수: {}", totalMovies);
+
+        // 총 배치 수 계산 - 각 배치는 BATCH_SIZE 개의 영화를 처리
+        final int totalBatches = (int) Math.ceil(totalMovies / (double) BATCH_SIZE);
+
+        // 현재 처리 중인 배치 번호
+        final AtomicInteger currentBatch = new AtomicInteger(0);
+
+        // 배치 목록을 점진적으로 반환하는 ItemReader 생성
+        return new ItemReader<List<MovieImagesDto>>() {
+            private boolean isCompleted = false;
+            private ExecutorService executor = null;
+
+            @Override
+            public List<MovieImagesDto> read() {
+                if (isCompleted) {
+                    return null;
+                }
+
+                // 현재 배치 번호 가져오기
+                int batchIndex = currentBatch.getAndIncrement();
+
+                // 모든 배치를 처리했으면 종료
+                if (batchIndex >= totalBatches) {
+                    if (executor != null) {
+                        executor.shutdown(); // 모든 작업이 완료되면 스레드 풀 종료
+                    }
+                    isCompleted = true;
+                    return null;
+                }
+
+                // 배치 사이에 잠시 대기하여 API 레이트 리밋 준수 (첫 배치는 제외)
+                if (batchIndex > 0) {
+                    try {
+                        Thread.sleep(10000); // 10초 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while waiting between batches", e);
+                    }
+                }
+
+                // 현재 배치의 영화 범위 계산
+                int startIndex = batchIndex * BATCH_SIZE;
+                int endIndex = Math.min(startIndex + BATCH_SIZE, (int) totalMovies);
+
+                // 현재 배치의 영화 목록 가져오기
+                Pageable pageable = PageRequest.of(startIndex / PAGE_SIZE, PAGE_SIZE);
+                List<TmdbMovieDetail> batchMovies = new ArrayList<>();
+
+                // 현재 배치에 필요한 페이지들을 순차적으로 로드
+                int remainingMovies = endIndex - startIndex;
+                int currentPageIndex = startIndex / PAGE_SIZE;
+
+                while (remainingMovies > 0) {
+                    pageable = PageRequest.of(currentPageIndex, PAGE_SIZE);
+                    Page<TmdbMovieDetail> moviePage = tmdbMovieDetailRepository.findAll(pageable);
+                    List<TmdbMovieDetail> pageMovies = moviePage.getContent();
+
+                    if (pageMovies.isEmpty()) {
+                        currentPageIndex++;
+                        continue;
+                    }
+
+                    // 첫 페이지에서는 시작 인덱스에 해당하는 영화부터 추가
+                    if (currentPageIndex == startIndex / PAGE_SIZE) {
+                        int startOffset = startIndex % PAGE_SIZE;
+                        int count = Math.min(pageMovies.size() - startOffset, remainingMovies);
+                        for (int i = startOffset; i < startOffset + count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    } else {
+                        // 이후 페이지에서는 필요한 만큼만 추가
+                        int count = Math.min(pageMovies.size(), remainingMovies);
+                        for (int i = 0; i < count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    }
+
+                    currentPageIndex++;
+
+                    // 다음 페이지가 필요한 경우 짧은 지연 추가
+                    if (remainingMovies > 0) {
+                        try {
+                            Thread.sleep(100); // 100ms 대기
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.error("페이지 로드 사이에 대기하는 동안 중단됨", e);
+                        }
+                    }
+                }
+
+                if (batchMovies.isEmpty()) {
+                    return read(); // 다음 배치 시도
+                }
+
+                executor = Executors.newFixedThreadPool(THREAD_COUNT);
+
+                List<CompletableFuture<MovieImagesDto>> futures = new ArrayList<>();
+
+                for (TmdbMovieDetail movie : batchMovies) {
+                    CompletableFuture<MovieImagesDto> future = CompletableFuture.supplyAsync(() -> {
+                        try {
+                            List<MovieImageWithTypeDto> images = tmdbBatchComponent.fetchMovieImages(movie.getTmdbId());
+
+                            if (images == null || images.isEmpty()) {
+                                return new MovieImagesDto(movie.getTmdbId(), new ArrayList<>());
+                            } else {
+                                return new MovieImagesDto(movie.getTmdbId(), images);
+                            }
+                        } catch (Exception e) {
+                            log.error("영화 ID {}에 대한 이미지를 로드하는 중 오류 발생: {}", movie.getTmdbId(), e.getMessage(), e);
+                            return new MovieImagesDto(movie.getTmdbId(), new ArrayList<>());
+                        }
+                    }, executor);
+
+                    futures.add(future);
+
+                    // 각 API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
+                    try {
+                        Thread.sleep(50); // 50ms 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("API 호출 사이에 대기하는 동안 중단됨", e);
+                    }
+                }
+
+                // 모든 Future 결과 수집
+                List<MovieImagesDto> batchResults = new ArrayList<>();
+                for (CompletableFuture<MovieImagesDto> future : futures) {
+                    try {
+                        MovieImagesDto item = future.get();
+                        if (item != null && item.getImages() != null && !item.getImages().isEmpty()) {
+                            batchResults.add(item);
+                        }
+                    } catch (Exception e) {
+                        log.error("Future 결과를 가져오는 중에 오류가 발생했습니다.: {}", e.getMessage(), e);
+                    }
+                }
+                executor.shutdown();
+
+                // 빈 배치는 다음 배치 시도
+                if (batchResults.isEmpty()) {
+                    return read(); // 다음 배치 시도
+                }
+
+                return batchResults;
+            }
+        };
+    }
+
+    /**
+     * 영화 비디오 정보를 병렬로 읽어오는 Reader
+     * TmdbMovieDetail 엔티티를 배치로 가져와서 각 영화의 비디오 정보를 병렬로 조회.
+     *
+     * @return 영화 비디오 정보를 반환하는 ItemReader
+     */
+    public ItemReader<List<MovieVideosDto>> parallelMovieVideosReader() {
+        // 총 영화 수 확인
+        long totalMovies = tmdbMovieDetailRepository.count();
+        log.info("totalMovies: {}", totalMovies);
+
+        // 총 배치 수 계산 - 각 배치는 BATCH_SIZE 개의 영화를 처리
+        final int totalBatches = (int) Math.ceil(totalMovies / (double) BATCH_SIZE);
+
+        log.info("Movie Video 읽기 시작. 총 영화: {}개, 총 배치: {}개, 스레드 수: {}개",
+                totalMovies, totalBatches, THREAD_COUNT);
+
+        // 현재 처리 중인 배치 번호
+        final AtomicInteger currentBatch = new AtomicInteger(0);
+
+        return new ItemReader<List<MovieVideosDto>>() {
+            private boolean isCompleted = false;
+            private ExecutorService executor = null;
+
+            @Override
+            public List<MovieVideosDto> read() {
+                if (isCompleted) {
+                    return null;
+                }
+                int batchIndex = currentBatch.getAndIncrement();
+
+                if (batchIndex >= totalBatches) {
+                    if (executor != null) {
+                        executor.shutdown(); // 모든 작업이 완료되면 스레드 풀 종료
+                    }
+                    isCompleted = true;
+                    return null;
+                }
+
+                // 배치 사이에 잠시 대기하여 API 레이트 리밋 준수 (첫 배치는 제외)
+                if (batchIndex > 0) {
+                    try {
+                        log.info("API 속도 제한을 준수하기 위해 배치 사이에 10초간 대기");
+                        Thread.sleep(10000); // 10초 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("배치 사이 대기 중 중단됨", e);
+                    }
+                }
+
+                // 현재 배치의 영화 범위 계산
+                int startIndex = batchIndex * BATCH_SIZE;
+                int endIndex = Math.min(startIndex + BATCH_SIZE, (int) totalMovies);
+
+                Pageable pageable = PageRequest.of(startIndex / PAGE_SIZE, PAGE_SIZE);
+                List<TmdbMovieDetail> batchMovies = new ArrayList<>();
+
+                int remainingMovies = endIndex - startIndex;
+                int currentPageIndex = startIndex / PAGE_SIZE;
+
+                while (remainingMovies > 0) {
+                    pageable = PageRequest.of(currentPageIndex, PAGE_SIZE);
+                    Page<TmdbMovieDetail> moviePage = tmdbMovieDetailRepository.findAll(pageable);
+                    List<TmdbMovieDetail> pageMovies = moviePage.getContent();
+
+                    if (pageMovies.isEmpty()) {
+                        log.warn("{} page 영화 찾을 수 없음", currentPageIndex);
+                        currentPageIndex++;
+                        continue;
+                    }
+
+                    // 첫 페이지에서는 시작 인덱스에 해당하는 영화부터 추가
+                    if (currentPageIndex == startIndex / PAGE_SIZE) {
+                        int startOffset = startIndex % PAGE_SIZE;
+                        int count = Math.min(pageMovies.size() - startOffset, remainingMovies);
+                        for (int i = startOffset; i < startOffset + count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    } else {
+                        // 이후 페이지에서는 필요한 만큼만 추가
+                        int count = Math.min(pageMovies.size(), remainingMovies);
+                        for (int i = 0; i < count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    }
+
+                    currentPageIndex++;
+
+                    // 다음 페이지가 필요한 경우 짧은 지연 추가
+                    if (remainingMovies > 0) {
+                        try {
+                            Thread.sleep(100); // 100ms 대기
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.error("페이지 로드 사이에 대기하는 동안 중단됨", e);
+                        }
+                    }
+                }
+
+                if (batchMovies.isEmpty()) {
+                    return read(); // 다음 배치 시도
+                }
+                executor = Executors.newFixedThreadPool(THREAD_COUNT);
+
+                List<CompletableFuture<MovieVideosDto>> futures = new ArrayList<>();
+
+                for (TmdbMovieDetail movie : batchMovies) {
+                    CompletableFuture<MovieVideosDto> future = CompletableFuture.supplyAsync(() -> {
+                        try {
+                            List<VideoDto> videos = tmdbBatchComponent.fetchMovieVideos(movie.getTmdbId());
+
+                            if (videos == null || videos.isEmpty()) {
+                                return new MovieVideosDto(movie.getTmdbId(), new ArrayList<>());
+                            } else {
+                                return new MovieVideosDto(movie.getTmdbId(), videos);
+                            }
+                        } catch (Exception e) {
+                            log.error("영화 ID {}에 대한 비디오를 로드하는 중 오류 발생: {}\n", movie.getTmdbId(), e.getMessage(), e);
+                            return new MovieVideosDto(movie.getTmdbId(), new ArrayList<>());
+                        }
+                    }, executor);
+
+                    futures.add(future);
+
+                    // 각 API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
+                    try {
+                        Thread.sleep(50); // 50ms 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("API 호출 사이에 대기하는 동안 중단됨", e);
+                    }
+                }
+
+                // 모든 Future 결과 수집
+                List<MovieVideosDto> batchResults = new ArrayList<>();
+                for (CompletableFuture<MovieVideosDto> future : futures) {
+                    try {
+                        MovieVideosDto item = future.get();
+                        if (item != null && item.getVideos() != null && !item.getVideos().isEmpty()) {
+                            batchResults.add(item);
+                        }
+                    } catch (Exception e) {
+                        log.error("Future 결과를 가져오는 중 오류가 발생: {}\n", e.getMessage(), e);
+                    }
+                }
+                executor.shutdown();
+
+                log.info("{}개의 동영상이 포함된 {} Batch 완료",
+                        batchIndex + 1, batchResults.size());
+
+                // 빈 배치는 다음 배치 시도
+                if (batchResults.isEmpty()) {
+                    return read(); // 다음 배치 시도
+                }
+
+                return batchResults;
+            }
+        };
+    }
+
+    /**
+     * 데이터베이스에서 모든 TmdbMovieDetail의 tmdbId 목록을 가져옴.
+     * 
+     * @return 모든 TmdbMovieDetail의 tmdbId 목록
+     */
+    public List<Long> getAllTmdbMovieDetailTmdbIds() {
+        log.info("Fetching all TmdbMovieDetail tmdbIds from database");
+        List<TmdbMovieDetail> allMovies = tmdbMovieDetailRepository.findAll();
+        List<Long> tmdbIds = allMovies.stream()
+                .map(TmdbMovieDetail::getTmdbId)
+                .collect(java.util.stream.Collectors.toList());
+        log.info("Found {} tmdbIds in database", tmdbIds.size());
+        return tmdbIds;
+    }
+}
