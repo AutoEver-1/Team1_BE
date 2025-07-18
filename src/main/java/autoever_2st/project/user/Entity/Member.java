@@ -1,11 +1,15 @@
 package autoever_2st.project.user.Entity;
 
 
+import autoever_2st.project.user.Entity.Follow.MemberFollower;
+import autoever_2st.project.user.Entity.Follow.MemberFollowing;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Builder
 @Entity
@@ -44,4 +48,14 @@ public class Member {
     public String getProfileImgUrl() {
         return profile_img_url;
     }
+
+//    // 나를 팔로우한 사람들
+//    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
+//    private List<MemberFollower> followers = new ArrayList<>();
+//
+//    // 내가 팔로우하는 사람들
+//    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
+//    private List<MemberFollowing> followings = new ArrayList<>();
+
+
 }
