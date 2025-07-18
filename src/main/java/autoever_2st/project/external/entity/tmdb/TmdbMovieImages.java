@@ -30,16 +30,26 @@ public class TmdbMovieImages extends TimeStamp {
     @Column(name = "ratio")
     private Double ratio;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "image_type")
+    private ImageType imageType;
+
+    @Column(name = "iso_639_1")
+    private String iso6391;
+
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tmdb_movie_detail_id")
     private TmdbMovieDetail tmdbMovieDetail;
 
-    public TmdbMovieImages(String imageUrl, String baseUrl, Integer width, Integer height, Double ratio) {
+    public TmdbMovieImages(String imageUrl, String baseUrl, Integer width, Integer height, Double ratio, ImageType imageType, String iso6391) {
         this.imageUrl = imageUrl;
         this.baseUrl = baseUrl;
         this.width = width;
         this.height = height;
         this.ratio = ratio;
+        this.imageType = imageType;
+        this.iso6391 = iso6391;
     }
 
     public TmdbMovieImages setTmdbMovieDetail(TmdbMovieDetail tmdbMovieDetail){
