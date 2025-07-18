@@ -117,7 +117,7 @@ public class MovieController {
                     new Date(),
                     1000000L + (i * 100000),
                     directors,
-                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg"
+                    "https://image.tmdb.org/t/p/original/9E0C4FVsGfQzeuQA7wMxYKwhxVv.jpg"
             );
 
             movieList.add(movie);
