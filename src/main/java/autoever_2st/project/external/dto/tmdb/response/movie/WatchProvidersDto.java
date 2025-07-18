@@ -30,6 +30,20 @@ public class WatchProvidersDto {
         private Integer providerId;
         @JsonProperty("provider_name")
         private String providerName;
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ProviderInner that = (ProviderInner) o;
+            return providerId.equals(that.providerId);
+        }
+
+        @Override
+        public int hashCode() {
+            return providerId != null ? providerId.hashCode() : 0;
+        }
     }
+
 }
 

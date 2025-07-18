@@ -4,6 +4,7 @@ import autoever_2st.project.exception.exception_class.business.BusinessException
 import autoever_2st.project.external.dto.tmdb.common.trend.TrendDayMovieWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.trend.TrendPersonWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.trend.TrendTvWrapperDto;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -14,16 +15,22 @@ import org.springframework.web.client.RestClient;
 @Qualifier("tmdbTrend")
 @Getter
 public class TmdbTrendApiComponentImpl extends TmdbApiComponentImpl {
-    private final RestClient restClient;
+    private RestClient restClient;
 
     public TmdbTrendApiComponentImpl() {
+    }
+
+    @PostConstruct
+    public void init() {
         this.restClient = getTrendRestClient();
     }
 
     public TrendDayMovieWrapperDto getTrendDayMovie() {
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/movie/day?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/movie/day")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build())
                     .retrieve()
                     .body(TrendDayMovieWrapperDto.class);
@@ -35,7 +42,9 @@ public class TmdbTrendApiComponentImpl extends TmdbApiComponentImpl {
     public TrendPersonWrapperDto getTrendPerson() {
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/person/day?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/person/day")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build())
                     .retrieve()
                     .body(TrendPersonWrapperDto.class);
@@ -47,7 +56,9 @@ public class TmdbTrendApiComponentImpl extends TmdbApiComponentImpl {
     public TrendTvWrapperDto getTrendTv() {
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/tv/day?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/tv/day")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build())
                     .retrieve()
                     .body(TrendTvWrapperDto.class);

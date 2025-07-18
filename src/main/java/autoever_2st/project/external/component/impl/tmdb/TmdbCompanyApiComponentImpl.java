@@ -4,6 +4,7 @@ import autoever_2st.project.exception.exception_class.business.BusinessException
 import autoever_2st.project.external.dto.tmdb.common.company.AlternativeCompanyTitleWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.company.CompanyImagesWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.company.CompanyWrapperDto;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -14,9 +15,13 @@ import org.springframework.web.client.RestClient;
 @Qualifier("tmdbCompany")
 @Getter
 public class TmdbCompanyApiComponentImpl extends TmdbApiComponentImpl {
-    private final RestClient restClient;
+    private RestClient restClient;
 
     public TmdbCompanyApiComponentImpl() {
+    }
+
+    @PostConstruct
+    public void init() {
         this.restClient = getCompanyRestClient();
     }
 
@@ -24,6 +29,7 @@ public class TmdbCompanyApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{companyId}")
+                            .queryParam("api_key", getApiKey())
                             .build(companyId))
                     .retrieve()
                     .body(CompanyWrapperDto.class);
@@ -36,6 +42,7 @@ public class TmdbCompanyApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{companyId}/alternative_names")
+                            .queryParam("api_key", getApiKey())
                             .build(companyId))
                     .retrieve()
                     .body(AlternativeCompanyTitleWrapperDto.class);
@@ -48,6 +55,7 @@ public class TmdbCompanyApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{companyId}/images")
+                            .queryParam("api_key", getApiKey())
                             .build(companyId))
                     .retrieve()
                     .body(CompanyImagesWrapperDto.class);

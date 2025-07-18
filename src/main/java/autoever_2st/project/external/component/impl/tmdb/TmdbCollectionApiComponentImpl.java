@@ -3,6 +3,7 @@ package autoever_2st.project.external.component.impl.tmdb;
 import autoever_2st.project.exception.exception_class.business.BusinessException;
 import autoever_2st.project.external.dto.tmdb.common.collection.CollectionImagesWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.collection.CollectionWrapperDto;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -13,16 +14,22 @@ import org.springframework.web.client.RestClient;
 @Qualifier("tmdbCollection")
 @Getter
 public class TmdbCollectionApiComponentImpl extends TmdbApiComponentImpl{
-    private final RestClient restClient;
+    private RestClient restClient;
 
     public TmdbCollectionApiComponentImpl() {
+    }
+
+    @PostConstruct
+    public void init() {
         this.restClient = getCollectionRestClient();
     }
 
     public CollectionWrapperDto getCollection(Integer collectionId) {
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{collectionId}/ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{collectionId}")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build(collectionId))
                     .retrieve()
                     .body(CollectionWrapperDto.class);
@@ -35,6 +42,7 @@ public class TmdbCollectionApiComponentImpl extends TmdbApiComponentImpl{
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{collectionId}/images")
+                            .queryParam("api_key", getApiKey())
                             .build(collectionId))
                     .retrieve()
                     .body(CollectionImagesWrapperDto.class);

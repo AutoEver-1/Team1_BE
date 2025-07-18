@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "tmdb_movie_video")
-@NoArgsConstructor
 @Getter
+@NoArgsConstructor
 public class TmdbMovieVideo extends TimeStamp {
 
     @Id
@@ -21,13 +21,29 @@ public class TmdbMovieVideo extends TimeStamp {
     @Column(name = "base_url")
     private String baseUrl;
 
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "site")
+    private String site;
+
+    @Column(name = "video_type")
+    private String videoType;
+
+    @Column(name = "iso_639_1")
+    private String iso6391;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tmdb_movie_detail_id")
     private TmdbMovieDetail tmdbMovieDetail;
 
-    public TmdbMovieVideo(String videoUrl, String baseUrl) {
+    public TmdbMovieVideo(String videoUrl, String baseUrl, String name, String site, String videoType, String iso6391) {
         this.videoUrl = videoUrl;
         this.baseUrl = baseUrl;
+        this.name = name;
+        this.site = site;
+        this.videoType = videoType;
+        this.iso6391 = iso6391;
     }
 
     public TmdbMovieVideo setTmdbMovieDetail(TmdbMovieDetail tmdbMovieDetail){

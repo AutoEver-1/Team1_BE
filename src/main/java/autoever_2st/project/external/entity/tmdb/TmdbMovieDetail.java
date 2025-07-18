@@ -34,7 +34,7 @@ public class TmdbMovieDetail extends TimeStamp {
     @Column(name = "original_language")
     private String originalLanguage;
 
-    @Column(name = "overview")
+    @Column(name = "overview" , columnDefinition = "TEXT" , nullable = true)
     private String overview;
 
     @Column(name = "status")
@@ -61,8 +61,10 @@ public class TmdbMovieDetail extends TimeStamp {
     @Column(name = "media_type")
     private String mediaType;
 
+    @Transient
+    private List<Integer> genreIds;
+
     @OneToOne(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "movie_id")
     private Movie movie;
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -118,6 +120,15 @@ public class TmdbMovieDetail extends TimeStamp {
     public TmdbMovieDetail addMovieGenreMatch(MovieGenreMatch movieGenreMatch){
         this.movieGenreMatch.add(movieGenreMatch);
         return this;
+    }
+
+    public TmdbMovieDetail setGenreIds(List<Integer> genreIds) {
+        this.genreIds = genreIds;
+        return this;
+    }
+
+    public List<Integer> getGenreIds() {
+        return genreIds;
     }
 
 

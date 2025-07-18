@@ -3,6 +3,7 @@ package autoever_2st.project.external.component.impl.tmdb;
 import autoever_2st.project.exception.exception_class.business.BusinessException;
 import autoever_2st.project.external.dto.tmdb.common.series.*;
 import autoever_2st.project.external.dto.tmdb.common.trend.TopRatedTvWrapperDto;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -13,17 +14,23 @@ import org.springframework.web.client.RestClient;
 @Qualifier("tmdbTv")
 @Getter
 public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
-    private final RestClient restClient;
+    private RestClient restClient;
 
     public TmdbTvApiComponentImpl() {
+    }
+
+    @PostConstruct
+    public void init() {
         this.restClient = getTvRestClient();
     }
 
     public TopRatedTvWrapperDto getTopRatedTvList(Integer page) {
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/top_rated?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/top_rated")
+                            .queryParam("api_key", getApiKey())
                             .queryParam("page", page)
+                            .queryParam("language", "ko-KR")
                             .build())
                     .retrieve()
                     .body(TopRatedTvWrapperDto.class);
@@ -35,7 +42,9 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
     public TvSeriesDetailWrapperDto getTvSeriesDetail(Long tvSeriesId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{tvId}?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{tvId}")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesDetailWrapperDto.class);
@@ -47,7 +56,9 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
     public AggregateTvWrapperDto getAggregatedTvList(Long tvSeriesId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{tvId}/aggregate_credits?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{tvId}/aggregate_credits")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build(tvSeriesId))
                     .retrieve()
                     .body(AggregateTvWrapperDto.class);
@@ -60,6 +71,7 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{tvId}/images")
+                            .queryParam("api_key", getApiKey())
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesImagesWrapperDto.class);
@@ -72,6 +84,7 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{tvId}/keywords")
+                            .queryParam("api_key", getApiKey())
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesKeywordWrapperDto.class);
@@ -83,8 +96,10 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
     public TvSeriesRecommendationsWrapperDto getTvSeriesRecommendations(Long tvSeriesId, Integer page){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{tvId}/recommendations?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{tvId}/recommendations")
+                            .queryParam("api_key", getApiKey())
                             .queryParam("page", page)
+                            .queryParam("language", "ko-KR")
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesRecommendationsWrapperDto.class);
@@ -96,8 +111,10 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
     public TvSeriesSimilarWrapperDto getTvSeriesSimilar(Long tvSeriesId, Integer page){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{tvId}/similar?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{tvId}/similar")
+                            .queryParam("api_key", getApiKey())
                             .queryParam("page", page)
+                            .queryParam("language", "ko-KR")
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesSimilarWrapperDto.class);
@@ -110,6 +127,7 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{tvId}/videos")
+                            .queryParam("api_key", getApiKey())
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesVideosWrapperDto.class);
@@ -122,6 +140,7 @@ public class TmdbTvApiComponentImpl extends TmdbApiComponentImpl {
         try {
             return restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/{tvId}/watch/providers")
+                            .queryParam("api_key", getApiKey())
                             .build(tvSeriesId))
                     .retrieve()
                     .body(TvSeriesWatchProvidersWrapperDto.class);
