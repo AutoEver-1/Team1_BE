@@ -17,7 +17,7 @@ public class KoficMovieDetail extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "movieCd")
+    @Column(name = "movie_cd")
     private String movieCd;
 
     @Column(name = "name")
@@ -27,6 +27,7 @@ public class KoficMovieDetail extends TimeStamp {
     private Movie movie;
 
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "kofic_box_office_id")
     private KoficBoxOffice koficBoxOffice;
 
     @OneToOne(fetch = FetchType.LAZY)
@@ -53,7 +54,6 @@ public class KoficMovieDetail extends TimeStamp {
             throw new IllegalArgumentException("koficBoxOffice가 이미 존재합니다.");
         }
         this.koficBoxOffice = koficBoxOffice;
-        koficBoxOffice.setKoficMovieDetail(this);
         return this;
     }
 
