@@ -17,7 +17,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api/review")
+@RequestMapping("/review")
 public class AdminReviewController {
 
     // 리뷰 검색 및 전체 조회

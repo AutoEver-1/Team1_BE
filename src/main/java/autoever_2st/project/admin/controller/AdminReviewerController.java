@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/reviewer")
+@RequestMapping("/reviewer")
 public class AdminReviewerController {
 
     // 리뷰어 조회 (단일)

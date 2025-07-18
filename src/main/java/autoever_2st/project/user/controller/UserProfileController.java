@@ -21,7 +21,7 @@ import java.util.*;
 
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/user")
+@RequestMapping("/user")
 public class UserProfileController {
 
     private final ReviewService reviewService;

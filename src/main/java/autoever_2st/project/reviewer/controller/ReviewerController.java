@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/reviewer")
+@RequestMapping("/reviewer")
 public class ReviewerController {
 
     @GetMapping("/{reviewerName}")

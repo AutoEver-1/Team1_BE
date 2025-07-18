@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 @RestController
-@RequestMapping("/api/member/admin")
+@RequestMapping("/member/admin")
 public class AdminStaticController {
 
     @GetMapping("/stats/register/{dateType}")
