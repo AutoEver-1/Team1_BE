@@ -19,12 +19,8 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.time.ZoneId;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -91,7 +87,7 @@ public class TmdbBatchProcessor {
                 return null;
             }
 
-            TmdbMovieDetail tmdbMovieDetail = new TmdbMovieDetail(isAdult, movieId, title, originalTitle, originalLanguage, overview, status, releaseDate, runtime, video, voteAverage, voteCount, popularity, mediaType);
+            TmdbMovieDetail tmdbMovieDetail = new TmdbMovieDetail(isAdult, movieId, title, originalTitle, originalLanguage, overview, status, Date.from(releaseDate.atStartOfDay(ZoneId.systemDefault()).toInstant()), runtime, video, voteAverage, voteCount, popularity, mediaType);
 
             tmdbMovieDetail.setGenreIds(movieResponseDto.getGenreIds());
 
