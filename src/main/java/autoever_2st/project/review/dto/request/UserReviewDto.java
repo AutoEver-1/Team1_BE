@@ -2,8 +2,7 @@ package autoever_2st.project.review.dto.request;
 
 import lombok.Getter;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.Date;
 
 @Getter
 public class UserReviewDto {
@@ -11,15 +10,15 @@ public class UserReviewDto {
     private Long movieId;
     private String title;
     private String posterPath;
-    private LocalDate releaseDate;
+    private Date releaseDate;
     private double rating;
-    private LocalDateTime reviewdDate;  // 리뷰 작성 날짜
+    private Date reviewdDate;  // 리뷰 작성 날짜
     private String context;         // 리뷰 내용
     private int likeCount;
     private boolean isAdult;
 
-    public UserReviewDto(Long movieId, String title, String posterPath, LocalDate releaseDate,
-                         double rating, LocalDateTime reviewdDate, String context,
+    public UserReviewDto(Long movieId, String title, String posterPath, Date releaseDate,
+                         double rating, Date reviewdDate, String context,
                          int likeCount, boolean isAdult) {
         this.movieId = movieId;
         this.title = title;

@@ -20,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,7 +54,7 @@ public class ReviewService {
         detail.setReview(review);
         detail.setRating(reviewRequestDto.getRating());
         detail.setContent(reviewRequestDto.getContext());
-        detail.setCreatedAt(LocalDateTime.now());
+        detail.setCreatedAt(Date.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant()));
         detail.setBanned(false);
         reviewDetailRepository.save(detail);
 
@@ -77,7 +79,7 @@ public class ReviewService {
         detail.setContent(reviewRequestDto.getContext());
 
         // 수정일자 필요 시 추가
-        detail.setCreatedAt(LocalDateTime.now()); // 기존 createdAt을 수정시각으로 덮어쓰기
+        detail.setCreatedAt(Date.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())); // 기존 createdAt을 수정시각으로 덮어쓰기
     }
 
     @Transactional
