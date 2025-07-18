@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @NoArgsConstructor
 @Getter
 public class KoficBoxOfficeDailyResultDto {
@@ -12,5 +14,5 @@ public class KoficBoxOfficeDailyResultDto {
     @JsonProperty("showRange")
     private String showRange;
     @JsonProperty("dailyBoxOfficeList")
-    private KoficBoxOfficeListDto dailyBoxOfficeList;
+    private List<KoficBoxOfficeListDto> dailyBoxOfficeList;
 }
