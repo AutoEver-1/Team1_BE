@@ -174,8 +174,6 @@ public class TmdbMovieDetailOttDao {
                 );
 
                 if (count != null && count > 0) {
-                    log.info("영화 ID {} 및 OTT 플랫폼 ID {}에 대한 데이터 삽입 확인.\n",
-                            tmdbMovieDetailId, ottPlatformId);
                 } else {
                     log.warn("데이터 검증에 실패. 영화 ID {} 및 OTT 플랫폼 ID {}에 대한 레코드가 없음",
                             tmdbMovieDetailId, ottPlatformId);
