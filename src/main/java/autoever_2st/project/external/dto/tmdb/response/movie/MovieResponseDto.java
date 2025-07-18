@@ -18,6 +18,9 @@ public class MovieResponseDto {
     @JsonProperty("genre_ids")
     private List<Integer> genreIds;
 
+    @JsonProperty("ott_ids")
+    private List<Integer> ottIds;
+
     @JsonProperty("id")
     private Integer id;
 
