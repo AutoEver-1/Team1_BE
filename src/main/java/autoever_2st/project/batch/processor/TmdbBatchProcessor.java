@@ -52,7 +52,7 @@ public class TmdbBatchProcessor {
             String originalLanguage = null;
             String overview = null;
             String status = null;
-            LocalDate releaseDate = null;
+            Date releaseDate = null;
             Integer runtime = null;
             Boolean video = null;
             Double voteAverage = null;
@@ -71,7 +71,7 @@ public class TmdbBatchProcessor {
                 String releaseDateStr = movieResponseDto.getReleaseDate();
                 if (releaseDateStr != null && !releaseDateStr.isEmpty()) {
                     try {
-                        releaseDate = LocalDate.parse(releaseDateStr);
+                        releaseDate = Date.from(LocalDate.parse(releaseDateStr).atStartOfDay(ZoneId.systemDefault()).toInstant());
                     } catch (Exception e) {
                         log.warn("release Date 파싱 실패 : {}", releaseDateStr);
                     }
@@ -87,7 +87,7 @@ public class TmdbBatchProcessor {
                 return null;
             }
 
-            TmdbMovieDetail tmdbMovieDetail = new TmdbMovieDetail(isAdult, movieId, title, originalTitle, originalLanguage, overview, status, Date.from(releaseDate.atStartOfDay(ZoneId.systemDefault()).toInstant()), runtime, video, voteAverage, voteCount, popularity, mediaType);
+            TmdbMovieDetail tmdbMovieDetail = new TmdbMovieDetail(isAdult, movieId, title, originalTitle, originalLanguage, overview, status, releaseDate, runtime, video, voteAverage, voteCount, popularity, mediaType);
 
             tmdbMovieDetail.setGenreIds(movieResponseDto.getGenreIds());
 
