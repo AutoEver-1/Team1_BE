@@ -19,11 +19,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -124,7 +122,7 @@ public class TmdbBatchComponent {
             dto.getOriginalLanguage(),
             dto.getOverview(),
             dto.getStatus(),
-            releaseDate,
+                Date.from(releaseDate.atStartOfDay(ZoneId.systemDefault()).toInstant()),
             dto.getRuntime(),
             dto.getVideo(),
             dto.getVoteAverage(),
