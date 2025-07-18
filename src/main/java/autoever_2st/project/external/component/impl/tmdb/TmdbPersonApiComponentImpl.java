@@ -7,6 +7,7 @@ import autoever_2st.project.external.dto.tmdb.common.person.ImagesPersonWrapperD
 import autoever_2st.project.external.dto.tmdb.common.person.MovieCreditsPersonWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.person.PopularPersonWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.person.TvCreditsPersonWrapperDto;
+import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -17,16 +18,22 @@ import org.springframework.web.client.RestClient;
 @Qualifier("tmdbPerson")
 @Getter
 public class TmdbPersonApiComponentImpl extends TmdbApiComponentImpl {
-    private final RestClient restClient;
+    private RestClient restClient;
 
     public TmdbPersonApiComponentImpl() {
+    }
+
+    @PostConstruct
+    public void init() {
         this.restClient = getPersonRestClient();
     }
 
     public PopularPersonWrapperDto getPopularPersonList(Integer page){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/popular?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/popular")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .queryParam("page", page)
                             .build())
                     .retrieve()
@@ -39,7 +46,9 @@ public class TmdbPersonApiComponentImpl extends TmdbApiComponentImpl {
     public DetailPersonWrapperDto getDetailPerson(Long personId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{personId}?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{personId}")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build(personId))
                     .retrieve()
                     .body(DetailPersonWrapperDto.class);
@@ -51,7 +60,9 @@ public class TmdbPersonApiComponentImpl extends TmdbApiComponentImpl {
     public CombinedCreditsPersonWrapperDto getCombinedCredits(Long personId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{personId}/combined_credits?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{personId}/combined_credits")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                             .build(personId))
                     .retrieve()
                     .body(CombinedCreditsPersonWrapperDto.class);
@@ -63,7 +74,9 @@ public class TmdbPersonApiComponentImpl extends TmdbApiComponentImpl {
     public ImagesPersonWrapperDto getImages(Long personId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{personId}/images?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{personId}/images")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                     .build(personId))
                     .retrieve()
                     .body(ImagesPersonWrapperDto.class);
@@ -75,7 +88,9 @@ public class TmdbPersonApiComponentImpl extends TmdbApiComponentImpl {
     public MovieCreditsPersonWrapperDto getMovieCredits(Long personId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{personId}/movie_credits?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{personId}/movie_credits")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                     .build(personId))
                     .retrieve()
                     .body(MovieCreditsPersonWrapperDto.class);
@@ -87,7 +102,9 @@ public class TmdbPersonApiComponentImpl extends TmdbApiComponentImpl {
     public TvCreditsPersonWrapperDto getTvCredits(Long personId){
         try {
             return restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/{personId}/tv_credits?language=ko-KR")
+                    .uri(uriBuilder -> uriBuilder.path("/{personId}/tv_credits")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("language", "ko-KR")
                     .build(personId))
                     .retrieve()
                     .body(TvCreditsPersonWrapperDto.class);
