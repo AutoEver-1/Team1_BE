@@ -4,13 +4,15 @@ import lombok.Getter;
 
 @Getter
 public enum Gender {
-    UNKNOWN(0, "알수없음"), MALE(1, "남자"), FEMALE(2, "여자");
+    UNKNOWN(0, "알수없음", "UNKNOWN"), MALE(1, "남자", "MALE"), FEMALE(2, "여자", "FEMALE");
 
     private Integer genderValue;
     private String genderKrString;
+    private String genderEnString;
 
-    Gender(Integer genderValue, String genderKrString) {
+    Gender(Integer genderValue, String genderKrString, String genderEnString) {
         this.genderValue = genderValue;
         this.genderKrString = genderKrString;
+        this.genderEnString = genderEnString;
     }
 }
