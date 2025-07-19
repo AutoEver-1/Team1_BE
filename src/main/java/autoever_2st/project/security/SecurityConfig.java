@@ -18,6 +18,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 @EnableWebSecurity
 @Configuration
@@ -50,33 +53,40 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+        LoginFilter loginFilter = new LoginFilter(authenticationManager(configuration), jwtUtil);
+        loginFilter.setFilterProcessesUrl("/api/login");
+
         httpSecurity
                 .csrf(AbstractHttpConfigurer::disable)
-                .formLogin((auth) -> auth
-                        .loginPage("/login")
-                        .loginProcessingUrl("/login")
-                        .permitAll()
+//                .formLogin((auth) -> auth
+//                        .loginPage("/login")
+//                        .loginProcessingUrl("/login")
+//                        .permitAll()
+//                )
+                .sessionManagement((session)->session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                .authorizeHttpRequests(authorize -> authorize
+                        //.requestMatchers("/api/posts/**", "/api/likes/**").authenticated()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs/swagger-config", "/swagger-resources/**", "/webjars/**", "/h2-console/**", "/login", "/signup", "/api/login").permitAll()
+                        .anyRequest().permitAll()
                 )
+
                 .oauth2Login(auth -> auth
                         .loginPage("/login")
                         .defaultSuccessUrl("/oauth-login")
                         .failureUrl("/login?error")
                         .permitAll()
-                )
-                .authorizeHttpRequests(authorize -> authorize
-                        //.requestMatchers("/api/posts/**", "/api/likes/**").authenticated()
-                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs/swagger-config", "/swagger-resources/**", "/webjars/**", "/h2-console/**").permitAll()
-                        .anyRequest().permitAll()
                 );
 
         //세션 설정
-        httpSecurity.sessionManagement((session)->session
-                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+//        httpSecurity
 
 
         //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
         // 새로 만든 로그인 필터를 원래의 (UsernamePasswordAuthenticationFilter)의 자리에 넣음
-        httpSecurity.addFilterAt(new LoginFilter(authenticationManager(configuration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
+        //httpSecurity.addFilterAt(new LoginFilter(authenticationManager(configuration), jwtUtil), UsernamePasswordAuthenticationFilter.class);
+        httpSecurity.addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class);
 
         // 로그인 필터 이전에 JWTFilter를 넣음
        // httpSecurity.addFilterBefore(new JWTFilter(jwtUtil, roleRepository), LoginFilter.class);
@@ -84,7 +94,6 @@ public class SecurityConfig {
 
         // 로그아웃 URL 설정
         httpSecurity.logout((auth) -> auth.logoutUrl("/logout"));
-
 
         return httpSecurity.build();
     }
