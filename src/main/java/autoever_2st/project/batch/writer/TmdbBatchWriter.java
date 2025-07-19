@@ -1,11 +1,8 @@
 package autoever_2st.project.batch.writer;
 
 import autoever_2st.project.batch.dao.*;
-import autoever_2st.project.external.entity.tmdb.MovieGenre;
-import autoever_2st.project.external.entity.tmdb.OttPlatform;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieVideo;
+import autoever_2st.project.external.entity.tmdb.*;
+import autoever_2st.project.external.repository.tmdb.TmdbMemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ItemWriter;
@@ -22,6 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 영화 상세 정보 엔티티를 저장하는 Writer
@@ -48,6 +47,10 @@ public class TmdbBatchWriter {
     private final TmdbMovieDetailOttDao tmdbMovieDetailOttDao;
     private final TmdbMovieImagesDao tmdbMovieImagesDao;
     private final TmdbMovieVideoDao tmdbMovieVideoDao;
+    private final TmdbMemberDao tmdbMemberDao;
+    private final TmdbMovieCastDao tmdbMovieCastDao;
+    private final TmdbMovieCrewDao tmdbMovieCrewDao;
+    private final TmdbMemberRepository tmdbMemberRepository;
     private final PlatformTransactionManager transactionManager;
     private final JdbcTemplate jdbcTemplate;
 
@@ -454,6 +457,129 @@ public class TmdbBatchWriter {
                 log.warn("Saved only {} out of {} videos for movie ID {}", 
                         savedCount, videoItems.size(), movieId);
             }
+        };
+    }
+
+    /**
+     * 영화 크레딧 정보(배우, 제작진)를 저장하는 Writer
+     * 영화 크레딧 정보를 처리하여 TmdbMember, TmdbMovieCast, TmdbMovieCrew 엔티티를 저장.
+     *
+     * @return 영화 크레딧 정보를 저장하는 ItemWriter
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public ItemWriter<Map<String, Object>> movieCreditsWriter() {
+        return creditsMap -> {
+            if (creditsMap == null || creditsMap.isEmpty()) {
+                log.warn("No movie credits to process");
+                return;
+            }
+
+            Map<String, Object> items = creditsMap.getItems().get(0);
+            if (items == null || items.isEmpty()) {
+                log.warn("No items in the movie credits to process");
+                return;
+            }
+
+            // 새 멤버 저장
+            @SuppressWarnings("unchecked")
+            List<TmdbMember> members = (List<TmdbMember>) items.get("members");
+            
+            if (members != null && !members.isEmpty()) {
+                log.info("Saving {} new members", members.size());
+                int savedMembersCount = tmdbMemberDao.batchInsertMembers(members);
+                log.info("Saved {} new members", savedMembersCount);
+            }
+
+            // 모든 필요한 멤버들의 tmdbId 수집 - 메모리에서
+            List<TmdbMovieCast> casts = (List<TmdbMovieCast>) items.get("casts");
+            List<TmdbMovieCrew> crews = (List<TmdbMovieCrew>) items.get("crews");
+            Map<TmdbMovieCast, Long> castToMemberTmdbIdMap = (Map<TmdbMovieCast, Long>) items.get("castToMemberTmdbIdMap");
+            Map<TmdbMovieCrew, Long> crewToMemberTmdbIdMap = (Map<TmdbMovieCrew, Long>) items.get("crewToMemberTmdbIdMap");
+
+            // 모든 필요한 멤버 tmdbId 수집
+            Set<Long> allNeededTmdbIds = new HashSet<>();
+            if (castToMemberTmdbIdMap != null) {
+                allNeededTmdbIds.addAll(castToMemberTmdbIdMap.values());
+            }
+            if (crewToMemberTmdbIdMap != null) {
+                allNeededTmdbIds.addAll(crewToMemberTmdbIdMap.values());
+            }
+
+            if (allNeededTmdbIds.isEmpty()) {
+                log.warn("No member tmdbIds found for casts and crews");
+                return;
+            }
+
+            // 필요한 모든 멤버를 한 번에 조회
+            log.info("Querying {} members from database", allNeededTmdbIds.size());
+            List<TmdbMember> allRequiredMembers = tmdbMemberRepository.findAllByTmdbIdIn(new ArrayList<>(allNeededTmdbIds));
+            
+            // tmdbId를 키로 하는 맵 생성
+            Map<Long, TmdbMember> tmdbIdToMemberMap = allRequiredMembers.stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            TmdbMember::getTmdbId,
+                            member -> member,
+                            (existing, replacement) -> existing));
+
+            log.info("Found {} members in database", tmdbIdToMemberMap.size());
+
+            // 캐스트 저장
+            if (casts != null && !casts.isEmpty() && castToMemberTmdbIdMap != null) {
+                log.info("Processing {} movie casts", casts.size());
+
+                List<TmdbMovieCast> validCasts = new ArrayList<>();
+                for (TmdbMovieCast cast : casts) {
+                    Long memberTmdbId = castToMemberTmdbIdMap.get(cast);
+                    if (memberTmdbId != null) {
+                        TmdbMember member = tmdbIdToMemberMap.get(memberTmdbId);
+                        if (member != null) {
+                            cast.setTmdbMember(member);
+                            validCasts.add(cast);
+                        } else {
+                            log.warn("Member with TMDB ID {} not found in database for cast", memberTmdbId);
+                        }
+                    } else {
+                        log.warn("No TMDB ID mapping found for cast");
+                    }
+                }
+
+                if (!validCasts.isEmpty()) {
+                    int savedCastsCount = tmdbMovieCastDao.batchInsertMovieCasts(validCasts);
+                    log.info("Saved {} movie casts", savedCastsCount);
+                } else {
+                    log.warn("No valid casts to save");
+                }
+            }
+
+            // 크루 저장
+            if (crews != null && !crews.isEmpty() && crewToMemberTmdbIdMap != null) {
+                log.info("Processing {} movie crews", crews.size());
+
+                List<TmdbMovieCrew> validCrews = new ArrayList<>();
+                for (TmdbMovieCrew crew : crews) {
+                    Long memberTmdbId = crewToMemberTmdbIdMap.get(crew);
+                    if (memberTmdbId != null) {
+                        TmdbMember member = tmdbIdToMemberMap.get(memberTmdbId);
+                        if (member != null) {
+                            crew.setTmdbMember(member);
+                            validCrews.add(crew);
+                        } else {
+                            log.warn("Member with TMDB ID {} not found in database for crew", memberTmdbId);
+                        }
+                    } else {
+                        log.warn("No TMDB ID mapping found for crew");
+                    }
+                }
+
+                if (!validCrews.isEmpty()) {
+                    int savedCrewsCount = tmdbMovieCrewDao.batchInsertMovieCrews(validCrews);
+                    log.info("Saved {} movie crews", savedCrewsCount);
+                } else {
+                    log.warn("No valid crews to save");
+                }
+            }
+
+            log.info("Movie credits processing completed successfully");
         };
     }
 
