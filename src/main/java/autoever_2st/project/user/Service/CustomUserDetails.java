@@ -23,7 +23,8 @@ public class CustomUserDetails implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         Collection<GrantedAuthority> collection = new ArrayList<>();
-        collection.add(() -> "ROLE_" + member.getRole().getName().name()); // RoleType enum의 name을 가져오기 위해 .getName().name()
+        collection.add(() -> member.getRole().getName().name()); // RoleType enum의 name을 가져오기 위해 .getName().name()
+        //collection.add(() -> "ROLE_" + member.getRole().getName().name()); // RoleType enum의 name을 가져오기 위해 .getName().name()
         return collection;
     }
 

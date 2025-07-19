@@ -21,6 +21,8 @@ import autoever_2st.project.user.oauth.userinfo.OAuth2UserInfo;
 import autoever_2st.project.user.oauth.userinfo.GoogleUserDetails;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -120,7 +122,7 @@ public class CustomOauth2UserService extends DefaultOAuth2UserService {
                     .email(email)
                     .name(name)
                     .gender(gender)
-                    .birth_date(birthDate)
+                    .birth_date(Date.from(birthDate.atStartOfDay(ZoneId.systemDefault()).toInstant()))
                     .role(userRole)
                     .nickname(email + "_" + numericNickname)
                     .profile_img_url("1")

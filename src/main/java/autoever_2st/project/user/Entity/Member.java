@@ -9,6 +9,7 @@ import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Builder
@@ -32,7 +33,7 @@ public class Member {
     private String password;
     private String name;
     private String gender;
-    private LocalDate birth_date;
+    private Date birth_date;
 
     private String nickname;
     @ColumnDefault("1")         // UserService에서 기본 url asset 경로로 수정
@@ -49,13 +50,13 @@ public class Member {
         return profile_img_url;
     }
 
-//    // 나를 팔로우한 사람들
-//    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
-//    private List<MemberFollower> followers = new ArrayList<>();
-//
-//    // 내가 팔로우하는 사람들
-//    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
-//    private List<MemberFollowing> followings = new ArrayList<>();
+    // 나를 팔로우한 사람들
+    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
+    private List<MemberFollower> followers = new ArrayList<>();
+
+    // 내가 팔로우하는 사람들
+    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL)
+    private List<MemberFollowing> followings = new ArrayList<>();
 
 
 }

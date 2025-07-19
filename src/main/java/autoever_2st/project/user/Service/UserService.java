@@ -11,6 +11,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.Optional;
 
 @Service
@@ -59,7 +61,7 @@ public class UserService {
                 .password(bCryptPasswordEncoder.encode(signupRequestDto.getPassword()))
                 .name(signupRequestDto.getName())
                 .gender(signupRequestDto.getGender())
-                .birth_date(LocalDate.parse(signupRequestDto.getBirth_date()))
+                .birth_date(Date.from(LocalDate.parse(signupRequestDto.getBirth_date()).atStartOfDay(ZoneId.systemDefault()).toInstant()))
                 .role(userRole)   // 여기서 기본값처럼 넣어줌
                 .nickname(signupRequestDto.getEmail() + "_" + numericNickname)
                 .profile_img_url("1")

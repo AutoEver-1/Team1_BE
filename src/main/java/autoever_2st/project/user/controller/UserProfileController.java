@@ -8,6 +8,7 @@ import autoever_2st.project.review.Service.ReviewService;
 import autoever_2st.project.review.dto.request.UserReviewListResponseDto;
 import autoever_2st.project.user.Service.CustomUserDetails;
 import autoever_2st.project.user.Service.FollowService;
+import autoever_2st.project.user.Service.UserProfileService;
 import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
@@ -26,11 +27,14 @@ public class UserProfileController {
 
     private final ReviewService reviewService;
     private final FollowService followService;
+    private final UserProfileService userProfileService;
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
-    public ApiResponse<UserProfileDto> getUserProfile(@PathVariable Long memberId) {
-        UserProfileDto userProfile = createMockUserProfile(memberId);
+    public ApiResponse<UserProfileDto> getUserProfile(@PathVariable Long memberId, @AuthenticationPrincipal CustomUserDetails userDetails) {
+
+        Long viewerId = userDetails.getMember().getId();  // 로그인한 사용자 ID
+        UserProfileDto userProfile = userProfileService.getUserProfile(viewerId, memberId);
         return ApiResponse.success(userProfile, HttpStatus.OK.value());
     }
 
