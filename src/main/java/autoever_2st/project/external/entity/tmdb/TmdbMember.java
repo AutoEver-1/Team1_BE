@@ -6,6 +6,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "tmdb_member")
 @Getter
@@ -34,20 +37,43 @@ public class TmdbMember extends TimeStamp {
     @Column(name = "gender")
     private Gender gender;
 
-    @Column(name = "known_for_department")
-    private String knownForDepartment;
-
     @Column(name = "profile_path")
     private String profilePath;
 
-    public TmdbMember(Boolean isAdult, Long tmdbId, String originalName, String name, String mediaType, Gender gender, String knownForDepartment, String profilePath) {
+    @OneToMany(mappedBy = "tmdbMember", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieCrew> tmdbMovieCrew = new ArrayList<>();
+
+    @OneToMany(mappedBy = "tmdbMember", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieCast> tmdbMovieCast = new ArrayList<>();
+
+    public TmdbMember(Boolean isAdult, Long tmdbId, String originalName, String name, String mediaType, Gender gender, String profilePath) {
         this.isAdult = isAdult;
         this.tmdbId = tmdbId;
         this.originalName = originalName;
         this.name = name;
         this.mediaType = mediaType;
         this.gender = gender;
-        this.knownForDepartment = knownForDepartment;
         this.profilePath = profilePath;
     }
+
+    public TmdbMember addTmdbMovieCrew(TmdbMovieCrew tmdbMovieCrew){
+        this.tmdbMovieCrew.add(tmdbMovieCrew);
+        return this;
+    }
+
+    public TmdbMember removeTmdbMovieCrew(TmdbMovieCrew tmdbMovieCrew){
+        this.tmdbMovieCrew.remove(tmdbMovieCrew);
+        return this;
+    }
+
+    public TmdbMember addTmdbMovieCast(TmdbMovieCast tmdbMovieCast){
+        this.tmdbMovieCast.add(tmdbMovieCast);
+        return this;
+    }
+
+    public TmdbMember removeTmdbMovieCast(TmdbMovieCast tmdbMovieCast){
+        this.tmdbMovieCast.remove(tmdbMovieCast);
+        return this;
+    }
+
 }
