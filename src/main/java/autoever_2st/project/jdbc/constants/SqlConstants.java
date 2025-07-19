@@ -87,4 +87,32 @@ public class SqlConstants {
     public static final String INSERT_MOVIE_VIDEO = 
             "INSERT INTO tmdb_movie_video (video_url, base_url, name, site, video_type, iso_639_1, tmdb_movie_detail_id, registed_at, updated_at) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+    // TmdbMember 관련 쿼리
+    public static final String FIND_EXISTING_MEMBERS = 
+            "SELECT id, tmdb_id, name, original_name, gender, profile_path, updated_at FROM tmdb_member " +
+            "WHERE tmdb_id IN (:tmdbIds)";
+
+    public static final String FIND_ALL_MEMBERS = 
+            "SELECT id, tmdb_id, name, original_name, gender, profile_path, updated_at FROM tmdb_member";
+
+    public static final String INSERT_MEMBER = 
+            "INSERT INTO tmdb_member (is_adult, tmdb_id, original_name, name, media_type, gender, profile_path, registed_at, updated_at) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+            "ON DUPLICATE KEY UPDATE name = VALUES(name), original_name = VALUES(original_name), " +
+            "profile_path = VALUES(profile_path), updated_at = VALUES(updated_at)";
+
+    public static final String UPDATE_MEMBER = 
+            "UPDATE tmdb_member SET name = ?, original_name = ?, profile_path = ?, updated_at = ? " +
+            "WHERE id = ?";
+
+    // TmdbMovieCast 관련 쿼리
+    public static final String INSERT_MOVIE_CAST = 
+            "INSERT INTO tmdb_movie_cast (cast_character, cast_order, tmdb_cast_id, known_for_department, tmdb_movie_detail_id, tmdb_member_id, registed_at, updated_at) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+    // TmdbMovieCrew 관련 쿼리
+    public static final String INSERT_MOVIE_CREW = 
+            "INSERT INTO tmdb_movie_crew (tmdb_credit_id, department, job, tmdb_movie_detail_id, tmdb_member_id, registed_at, updated_at) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)";
 }
