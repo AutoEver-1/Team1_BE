@@ -6,6 +6,7 @@ import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
 import autoever_2st.project.batch.processor.TmdbBatchProcessor;
 import autoever_2st.project.batch.reader.TmdbBatchReader;
 import autoever_2st.project.batch.writer.TmdbBatchWriter;
+import autoever_2st.project.external.dto.tmdb.common.movie.CreditsWrapperDto;
 import autoever_2st.project.external.dto.tmdb.response.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
 import autoever_2st.project.external.entity.tmdb.MovieGenre;
@@ -56,7 +57,8 @@ public class TmdbBatchJobConfig {
                 .next(fetchMovieDiscoverStep()) // 그 다음 영화 정보 로드
                 .next(fetchMovieWatchProvidersStep()) // 그 다음 영화 OTT 제공자 정보 로드
                 .next(fetchMovieImagesStep()) // 그 다음 영화 이미지 정보 로드
-                .next(fetchMovieVideosStep()) // 마지막으로 영화 비디오 정보 로드
+                .next(fetchMovieVideosStep()) // 그 다음 영화 비디오 정보 로드
+                .next(fetchMovieCreditsStep()) // 영화 크레딧 정보 로드
                 .build();
     }
 
@@ -134,6 +136,19 @@ public class TmdbBatchJobConfig {
                 .reader(tmdbBatchReader.parallelMovieVideosReader())
                 .processor(tmdbBatchProcessor.movieVideosListProcessor())
                 .writer(tmdbBatchWriter.tmdbMovieVideoListWriter())
+                .build();
+    }
+
+    /**
+     * 영화 크레딧 정보(배우, 제작진)를 가져오는 Step
+     */
+    @Bean
+    public Step fetchMovieCreditsStep() {
+        return new StepBuilder("fetchMovieCreditsStep", jobRepository)
+                .<List<CreditsWrapperDto>, Map<String, Object>>chunk(1, transactionManager)
+                .reader(tmdbBatchReader.parallelMovieCreditsReader())
+                .processor(tmdbBatchProcessor.movieCreditsProcessor())
+                .writer(tmdbBatchWriter.movieCreditsWriter())
                 .build();
     }
 
