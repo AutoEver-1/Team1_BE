@@ -5,10 +5,15 @@ import autoever_2st.project.batch.dto.MovieImagesDto;
 import autoever_2st.project.batch.dto.MovieVideosDto;
 import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
 import autoever_2st.project.external.component.impl.tmdb.TmdbMovieApiComponentImpl;
+import autoever_2st.project.external.dto.tmdb.common.movie.CreditsWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.movie.DiscoverMovieWrapperDto;
 import autoever_2st.project.external.dto.tmdb.response.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
+import autoever_2st.project.external.entity.tmdb.*;
+import autoever_2st.project.external.enums.Gender;
+import autoever_2st.project.external.repository.tmdb.TmdbMemberRepository;
+import autoever_2st.project.external.repository.tmdb.TmdbMovieCastRepository;
+import autoever_2st.project.external.repository.tmdb.TmdbMovieCrewRepository;
 import autoever_2st.project.external.repository.tmdb.TmdbMovieDetailRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,9 +27,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,6 +44,9 @@ public class TmdbBatchReader {
     private final TmdbBatchComponent tmdbBatchComponent;
     private final TmdbMovieDetailRepository tmdbMovieDetailRepository;
     private final TmdbMovieApiComponentImpl tmdbMovieApiComponent;
+    private final TmdbMemberRepository tmdbMemberRepository;
+    private final TmdbMovieCastRepository tmdbMovieCastRepository;
+    private final TmdbMovieCrewRepository tmdbMovieCrewRepository;
 
     // 페이지 크기 상수 - TMDb API의 기본값은 20
     private static final int PAGE_SIZE = 20;
@@ -60,7 +66,7 @@ public class TmdbBatchReader {
     public ItemReader<List<MovieResponseDto>> parallelMoviePageReader() {
         // 첫 페이지를 가져와서 총 페이지 수 확인
         DiscoverMovieWrapperDto firstPage = tmdbBatchComponent.getTmdbMovieApiComponent().getDiscoverMovieList(1);
-        int totalPages = firstPage.getTotalPages() > 500 ? 500 : firstPage.getTotalPages();
+        int totalPages = firstPage.getTotalPages() > 500 ? 40 : firstPage.getTotalPages();
 
         List<MovieResponseDto> firstPageResults = firstPage.getResults();
 
@@ -727,7 +733,6 @@ public class TmdbBatchReader {
 
     /**
      * 데이터베이스에서 모든 TmdbMovieDetail의 tmdbId 목록을 가져옴.
-     * 
      * @return 모든 TmdbMovieDetail의 tmdbId 목록
      */
     public List<Long> getAllTmdbMovieDetailTmdbIds() {
@@ -738,5 +743,243 @@ public class TmdbBatchReader {
                 .collect(java.util.stream.Collectors.toList());
         log.info("Found {} tmdbIds in database", tmdbIds.size());
         return tmdbIds;
+    }
+
+    /**
+     * 영화 크레딧 정보(배우, 제작진)를 병렬로 읽어오는 Reader
+     * TmdbMovieDetail 엔티티를 배치로 가져와서 각 영화의 크레딧 정보를 병렬로 조회.
+     * 배우와 제작진 정보를 중복 제거하여 TmdbMember 엔티티로 저장하고,
+     * TmdbMovieCast와 TmdbMovieCrew 엔티티를 생성하여 TmdbMember와 TmdbMovieDetail 간의 관계를 설정.
+     *
+     * @return 영화 크레딧 정보를 반환하는 ItemReader
+     */
+    public ItemReader<List<CreditsWrapperDto>> parallelMovieCreditsReader() {
+        // 총 영화 수 확인
+        long totalMovies = tmdbMovieDetailRepository.count();
+        log.info("총 영화 수: {}", totalMovies);
+
+        // 총 배치 수 계산 - 각 배치는 BATCH_SIZE 개의 영화를 처리
+        final int totalBatches = (int) Math.ceil(totalMovies / (double) BATCH_SIZE);
+
+        log.info("Movie Credit 읽기 시작. 총 영화: {}개, 총 배치: {}개, 스레드 수: {}개",
+                totalMovies, totalBatches, THREAD_COUNT);
+
+        // 현재 처리 중인 배치 번호
+        final AtomicInteger currentBatch = new AtomicInteger(0);
+
+        return new ItemReader<List<CreditsWrapperDto>>() {
+            private boolean isCompleted = false;
+            private ExecutorService executor = null;
+
+            @Override
+            public List<CreditsWrapperDto> read() {
+                if (isCompleted) {
+                    return null;
+                }
+                int batchIndex = currentBatch.getAndIncrement();
+
+                if (batchIndex >= totalBatches) {
+                    if (executor != null) {
+                        executor.shutdown(); // 모든 작업이 완료되면 스레드 풀 종료
+                    }
+                    isCompleted = true;
+                    return null;
+                }
+
+                // 배치 사이에 잠시 대기하여 API 레이트 리밋 준수 (첫 배치는 제외)
+                if (batchIndex > 0) {
+                    try {
+                        log.info("API 속도 제한을 준수하기 위해 배치 사이에 10초간 대기");
+                        Thread.sleep(10000); // 10초 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("배치 사이 대기 중 중단됨", e);
+                    }
+                }
+
+                // 현재 배치의 영화 범위 계산
+                int startIndex = batchIndex * BATCH_SIZE;
+                int endIndex = Math.min(startIndex + BATCH_SIZE, (int) totalMovies);
+
+                Pageable pageable = PageRequest.of(startIndex / PAGE_SIZE, PAGE_SIZE);
+                List<TmdbMovieDetail> batchMovies = new ArrayList<>();
+
+                int remainingMovies = endIndex - startIndex;
+                int currentPageIndex = startIndex / PAGE_SIZE;
+
+                while (remainingMovies > 0) {
+                    pageable = PageRequest.of(currentPageIndex, PAGE_SIZE);
+                    Page<TmdbMovieDetail> moviePage = tmdbMovieDetailRepository.findAll(pageable);
+                    List<TmdbMovieDetail> pageMovies = moviePage.getContent();
+
+                    if (pageMovies.isEmpty()) {
+                        log.warn("{} page 영화 찾을 수 없음", currentPageIndex);
+                        currentPageIndex++;
+                        continue;
+                    }
+
+                    // 첫 페이지에서는 시작 인덱스에 해당하는 영화부터 추가
+                    if (currentPageIndex == startIndex / PAGE_SIZE) {
+                        int startOffset = startIndex % PAGE_SIZE;
+                        int count = Math.min(pageMovies.size() - startOffset, remainingMovies);
+                        for (int i = startOffset; i < startOffset + count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    } else {
+                        // 이후 페이지에서는 필요한 만큼만 추가
+                        int count = Math.min(pageMovies.size(), remainingMovies);
+                        for (int i = 0; i < count; i++) {
+                            batchMovies.add(pageMovies.get(i));
+                        }
+                        remainingMovies -= count;
+                    }
+
+                    currentPageIndex++;
+
+                    // 다음 페이지가 필요한 경우 짧은 지연 추가
+                    if (remainingMovies > 0) {
+                        try {
+                            Thread.sleep(50); // 50ms 대기
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.error("페이지 로드 사이에 대기하는 동안 중단됨", e);
+                        }
+                    }
+                }
+
+                if (batchMovies.isEmpty()) {
+                    return read(); // 다음 배치 시도
+                }
+                executor = Executors.newFixedThreadPool(THREAD_COUNT);
+
+                List<CompletableFuture<CreditsWrapperDto>> futures = new ArrayList<>();
+
+                for (TmdbMovieDetail movie : batchMovies) {
+                    CompletableFuture<CreditsWrapperDto> future = CompletableFuture.supplyAsync(() -> {
+                        try {
+                            CreditsWrapperDto credits = tmdbBatchComponent.fetchMovieCredits(movie.getTmdbId());
+
+                            if (credits == null) {
+                                return new CreditsWrapperDto(movie.getTmdbId().intValue(), new ArrayList<>(), new ArrayList<>());
+                            } else {
+                                return credits;
+                            }
+                        } catch (Exception e) {
+                            log.error("영화 ID {}에 대한 크레딧을 로드하는 중 오류 발생: {}", movie.getTmdbId(), e.getMessage(), e);
+                            return new CreditsWrapperDto(movie.getTmdbId().intValue(), new ArrayList<>(), new ArrayList<>());
+                        }
+                    }, executor);
+
+                    futures.add(future);
+
+                    // 각 API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
+                    try {
+                        Thread.sleep(50); // 50ms 대기
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("API 호출 사이에 대기하는 동안 중단됨", e);
+                    }
+                }
+
+                // 모든 Future 결과 수집
+                List<CreditsWrapperDto> batchResults = new ArrayList<>();
+                for (CompletableFuture<CreditsWrapperDto> future : futures) {
+                    try {
+                        CreditsWrapperDto item = future.get();
+                        if (item != null && 
+                            ((item.getCast() != null && !item.getCast().isEmpty()) || 
+                             (item.getCrew() != null && !item.getCrew().isEmpty()))) {
+                            batchResults.add(item);
+                        }
+                    } catch (Exception e) {
+                        log.error("Future 결과를 가져오는 중 오류가 발생: {}", e.getMessage(), e);
+                    }
+                }
+                executor.shutdown();
+
+                // 중복 제거를 위한 멤버 집합
+                Set<Long> uniqueMemberIds = new HashSet<>();
+                Map<Long, TmdbMember> memberMap = new HashMap<>();
+
+                // 모든 크레딧에서 멤버 정보 추출 및 중복 제거
+                for (CreditsWrapperDto credits : batchResults) {
+                    // 캐스트 멤버 처리
+                    if (credits.getCast() != null) {
+                        for (CastWrapperDto cast : credits.getCast()) {
+                            if (cast.getId() != null && !uniqueMemberIds.contains(cast.getId().longValue())) {
+                                uniqueMemberIds.add(cast.getId().longValue());
+
+                                // 성별 변환
+                                Gender gender = Gender.UNKNOWN;
+                                if (cast.getGender() != null) {
+                                    if (cast.getGender() == 1) {
+                                        gender = Gender.MALE;
+                                    } else if (cast.getGender() == 2) {
+                                        gender = Gender.FEMALE;
+                                    }
+                                }
+
+                                // TmdbMember 엔티티 생성
+                                TmdbMember member = new TmdbMember(
+                                    cast.getAdult(),
+                                    cast.getId().longValue(),
+                                    cast.getOriginalName(),
+                                    cast.getName(),
+                                    "movie",
+                                    gender,
+                                    cast.getProfilePath()
+                                );
+
+                                memberMap.put(cast.getId().longValue(), member);
+                            }
+                        }
+                    }
+
+                    // 크루 멤버 처리
+                    if (credits.getCrew() != null) {
+                        for (CrewWrapperDto crew : credits.getCrew()) {
+                            if (crew.getId() != null && !uniqueMemberIds.contains(crew.getId().longValue())) {
+                                uniqueMemberIds.add(crew.getId().longValue());
+
+                                // 성별 변환
+                                Gender gender = Gender.UNKNOWN;
+                                if (crew.getGender() != null) {
+                                    if (crew.getGender() == 1) {
+                                        gender = Gender.MALE;
+                                    } else if (crew.getGender() == 2) {
+                                        gender = Gender.FEMALE;
+                                    }
+                                }
+
+                                // TmdbMember 엔티티 생성
+                                TmdbMember member = new TmdbMember(
+                                    crew.getAdult(),
+                                    crew.getId().longValue(),
+                                    crew.getOriginalName(),
+                                    crew.getName(),
+                                    "movie",
+                                    gender,
+                                    crew.getProfilePath()
+                                );
+
+                                memberMap.put(crew.getId().longValue(), member);
+                            }
+                        }
+                    }
+                }
+
+                // 로그 정보 출력
+                log.info("중복 제거 후 {} 명의 멤버 정보 수집 완료", memberMap.size());
+                log.info("{}개의 영화 크레딧 처리 완료 (배치 {})", batchResults.size(), batchIndex + 1);
+
+                // 빈 배치는 다음 배치 시도
+                if (batchResults.isEmpty()) {
+                    return read();
+                }
+
+                return batchResults;
+            }
+        };
     }
 }
