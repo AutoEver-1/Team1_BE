@@ -4,6 +4,7 @@ import autoever_2st.project.common.dto.ApiResponse;
 import autoever_2st.project.movie.dto.DirectorDto;
 import autoever_2st.project.movie.dto.MovieDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
+import autoever_2st.project.movie.service.MovieService;
 import autoever_2st.project.review.Service.ReviewService;
 import autoever_2st.project.review.dto.request.UserReviewListResponseDto;
 import autoever_2st.project.user.Service.CustomUserDetails;
@@ -14,6 +15,7 @@ import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
 import autoever_2st.project.user.dto.response.UserProfileDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +30,7 @@ public class UserProfileController {
     private final ReviewService reviewService;
     private final FollowService followService;
     private final UserProfileService userProfileService;
+    private final MovieService movieService;
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
@@ -56,9 +59,12 @@ public class UserProfileController {
 
     // 최근 본 영화 조회
     @GetMapping("/{memberId}/recent-movie")
-    public ApiResponse<MovieListResponseDto> getRecentMovies(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+    public ApiResponse<MovieListResponseDto> getRecentMovies(@PathVariable Long memberId,
+                                                             @RequestParam(defaultValue = "0") int page,
+                                                             @RequestParam(defaultValue = "6") int size
+    ) {
+        PageRequest pageable = PageRequest.of(page, size);
+        MovieListResponseDto responseDto = movieService.getRecentMovies(memberId, pageable);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
@@ -187,7 +193,7 @@ public class UserProfileController {
                     (long) i,
                     "Director Name " + i,
                     "Original Director Name " + i,
-                    8.5 + (i * 0.1),
+                   // 8.5 + (i * 0.1),
                     "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
             
