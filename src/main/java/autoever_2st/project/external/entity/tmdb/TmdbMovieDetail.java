@@ -80,6 +80,12 @@ public class TmdbMovieDetail extends TimeStamp {
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MovieGenreMatch> movieGenreMatch = new ArrayList<>();
 
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieCast> tmdbMovieCast = new ArrayList<>();
+
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TmdbMovieCrew> tmdbMovieCrew = new ArrayList<>();
+
     public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, Date releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
         this.isAdult = isAdult;
         this.tmdbId = tmdbId;
@@ -132,6 +138,23 @@ public class TmdbMovieDetail extends TimeStamp {
         return genreIds;
     }
 
+    public TmdbMovieDetail addTmdbMovieCast(TmdbMovieCast tmdbMovieCast){
+        this.tmdbMovieCast.add(tmdbMovieCast);
+        return this;
+    }
 
+    public TmdbMovieDetail removeTmdbMovieCast(TmdbMovieCast tmdbMovieCast){
+        this.tmdbMovieCast.remove(tmdbMovieCast);
+        return this;
+    }
 
+    public TmdbMovieDetail addTmdbMovieCrew(TmdbMovieCrew tmdbMovieCrew){
+        this.tmdbMovieCrew.add(tmdbMovieCrew);
+        return this;
+    }
+
+    public TmdbMovieDetail removeTmdbMovieCrew(TmdbMovieCrew tmdbMovieCrew){
+        this.tmdbMovieCrew.remove(tmdbMovieCrew);
+        return this;
+    }
 }
