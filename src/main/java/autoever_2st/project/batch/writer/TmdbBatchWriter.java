@@ -92,6 +92,7 @@ public class TmdbBatchWriter {
      * 
      * 1. TmdbMovieDetail 저장 (자동 insert/update)
      * 2. Movie 엔티티 자동 생성
+     * 3. MovieGenreMatch 연관관계 생성
      */
     public ItemWriter<List<TmdbMovieDetail>> tmdbMovieDetailAndMovieWriter() {
         return chunk -> {
@@ -142,6 +143,10 @@ public class TmdbBatchWriter {
                     } else {
                         log.info("모든 TmdbMovieDetail에 이미 Movie 엔티티가 연결되어 있습니다.");
                     }
+
+                    // 3. MovieGenreMatch 연관관계 생성
+                    createMovieGenreMatches(validItems, movieDetailMap);
+
                 } else {
                     log.warn("Movie 생성을 위한 TmdbMovieDetail을 찾을 수 없습니다.");
                 }
@@ -150,6 +155,126 @@ public class TmdbBatchWriter {
                 // Movie 생성 실패해도 TmdbMovieDetail 저장은 성공했으므로 예외를 재던지지 않음
             }
         };
+    }
+
+    /**
+     * MovieGenreMatch 연관관계를 생성하는 헬퍼 메서드
+     */
+    private void createMovieGenreMatches(List<TmdbMovieDetail> movieDetails, 
+                                       Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetailMap) {
+        try {
+            // 모든 장르 정보 조회
+            List<MovieGenreDao.GenreInfo> allGenres = movieGenreDao.findAllGenres();
+            if (allGenres.isEmpty()) {
+                log.warn("데이터베이스에 장르 정보가 없습니다. MovieGenreMatch를 생성할 수 없습니다.");
+                return;
+            }
+
+            // 장르 ID를 키로 하는 맵 생성
+            Map<Long, MovieGenreDao.GenreInfo> genreIdToGenreMap = allGenres.stream()
+                    .collect(Collectors.toMap(
+                        MovieGenreDao.GenreInfo::getGenreId, 
+                        genre -> genre,
+                        (existing, replacement) -> existing));
+
+            log.info("{}개의 장르 정보 로드 완료", genreIdToGenreMap.size());
+
+            // 처리할 영화들의 tmdb_movie_detail_id 수집
+            List<Long> tmdbMovieDetailIds = movieDetails.stream()
+                    .map(movieDetail -> movieDetailMap.get(movieDetail.getTmdbId()))
+                    .filter(info -> info != null)
+                    .map(TmdbMovieDetailDao.MovieDetailInfo::getId)
+                    .collect(Collectors.toList());
+
+            if (tmdbMovieDetailIds.isEmpty()) {
+                log.warn("처리할 유효한 영화가 없습니다.");
+                return;
+            }
+
+            // 기존 MovieGenreMatch 조회 (중복 방지용)
+            Set<String> existingMatches = getExistingGenreMatches(tmdbMovieDetailIds);
+            log.info("기존 MovieGenreMatch {}개 확인", existingMatches.size());
+
+            int totalMatches = 0;
+            int processedMovies = 0;
+            int skippedDuplicates = 0;
+
+            // 각 영화에 대해 장르 매핑 생성
+            for (TmdbMovieDetail movieDetail : movieDetails) {
+                TmdbMovieDetailDao.MovieDetailInfo movieDetailInfo = movieDetailMap.get(movieDetail.getTmdbId());
+                if (movieDetailInfo == null) {
+                    log.warn("영화 {}에 대한 MovieDetailInfo를 찾을 수 없습니다.", movieDetail.getTitle());
+                    continue;
+                }
+
+                Long tmdbMovieDetailId = movieDetailInfo.getId();
+                List<Integer> movieGenreIds = movieDetail.getGenreIds();
+
+                if (movieGenreIds == null || movieGenreIds.isEmpty()) {
+                    log.debug("영화 {}에 장르 정보가 없습니다.", movieDetail.getTitle());
+                    processedMovies++;
+                    continue;
+                }
+
+                // 영화의 장르 ID에 해당하는 MovieGenre DB ID 목록 생성
+                List<Long> movieGenreDbIds = new ArrayList<>();
+                for (Integer genreId : movieGenreIds) {
+                    MovieGenreDao.GenreInfo genreInfo = genreIdToGenreMap.get(genreId.longValue());
+                    if (genreInfo != null) {
+                        String matchKey = tmdbMovieDetailId + "_" + genreInfo.getId();
+                        if (!existingMatches.contains(matchKey)) {
+                            movieGenreDbIds.add(genreInfo.getId());
+                        } else {
+                            skippedDuplicates++;
+                        }
+                    } else {
+                        log.warn("장르 ID {}가 데이터베이스에 없습니다. 영화: {}", genreId, movieDetail.getTitle());
+                    }
+                }
+
+                if (!movieGenreDbIds.isEmpty()) {
+                    try {
+                        int insertedMatchCount = movieGenreMatchDao.batchInsertGenreMatchesForMovie(tmdbMovieDetailId, movieGenreDbIds);
+                        totalMatches += insertedMatchCount;
+                        log.debug("영화 {}에 대해 {}개의 장르 매핑 생성", movieDetail.getTitle(), insertedMatchCount);
+                    } catch (Exception e) {
+                        log.error("영화 {}의 장르 매핑 생성 중 오류: {}", movieDetail.getTitle(), e.getMessage());
+                    }
+                } else {
+                    log.debug("영화 {}에 새로운 장르 매핑이 없습니다 (모두 기존 존재).", movieDetail.getTitle());
+                }
+
+                processedMovies++;
+            }
+
+            log.info("MovieGenreMatch 생성 완료 - 처리된 영화: {}개, 생성된 매핑: {}개, 스킵된 중복: {}개", 
+                    processedMovies, totalMatches, skippedDuplicates);
+
+        } catch (Exception e) {
+            log.error("MovieGenreMatch 생성 중 오류 발생: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 기존 MovieGenreMatch를 조회하여 중복 방지용 Set을 생성
+     */
+    private Set<String> getExistingGenreMatches(List<Long> tmdbMovieDetailIds) {
+        try {
+            String sql = "SELECT tmdb_movie_detail_id, movie_genre_id FROM movie_genre_match WHERE tmdb_movie_detail_id IN (" +
+                    tmdbMovieDetailIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")";
+            
+            return jdbcTemplate.query(sql, rs -> {
+                Set<String> matches = new HashSet<>();
+                while (rs.next()) {
+                    String matchKey = rs.getLong("tmdb_movie_detail_id") + "_" + rs.getLong("movie_genre_id");
+                    matches.add(matchKey);
+                }
+                return matches;
+            });
+        } catch (Exception e) {
+            log.warn("기존 MovieGenreMatch 조회 중 오류: {}", e.getMessage());
+            return new HashSet<>();
+        }
     }
 
     /**
@@ -890,8 +1015,9 @@ public class TmdbBatchWriter {
      * 2. 새 데이터와 업데이트 데이터 분리
      * 3. 배치 작업으로 처리
      * 4. Movie 엔티티 생성 및 연결
-     * 5. MovieGenreMatch 엔티티 생성 및 연결
-     * 6. TmdbMovieDetailOtt 엔티티 생성 및 연결
+     * 
+     * 주의: 이 메서드는 현재 사용되지 않습니다. 
+     * MovieGenreMatch는 tmdbMovieDetailAndMovieWriter에서 처리됩니다.
      */
     private void processChunk(List<TmdbMovieDetail> chunk) {
         // 1. TMDb ID 목록 추출
@@ -962,69 +1088,9 @@ public class TmdbBatchWriter {
                 int updatedMovieCount = movieDao.batchUpdateMovies(existingMovies);
             }
 
-            // 6. MovieGenreMatch 엔티티 생성 및 연결
-            // 모든 장르 조회 (MovieGenreDao.findAllGenres에서 중복 처리됨)
-            List<MovieGenreDao.GenreInfo> allGenres = movieGenreDao.findAllGenres();
-
-            // 장르 ID를 키로 하는 맵 생성
-            Map<Long, MovieGenreDao.GenreInfo> genreIdToGenreMap = allGenres.stream()
-                    .collect(Collectors.toMap(
-                        MovieGenreDao.GenreInfo::getGenreId, 
-                        genre -> genre,
-                        (existing, replacement) -> existing)); // 중복 시 기존 항목 유지
-
-
-            // 7. 모든 OTT 플랫폼 조회
-            List<OttPlatformDao.OttPlatformInfo> allOttPlatforms = ottPlatformDao.findAllOttPlatforms();
-
-            // OTT 플랫폼 ID를 키로 하는 맵 생성
-            Map<Long, OttPlatformDao.OttPlatformInfo> ottIdToOttPlatformMap = allOttPlatforms.stream()
-                    .collect(Collectors.toMap(
-                        OttPlatformDao.OttPlatformInfo::getTmdbOttId, 
-                        ottPlatform -> ottPlatform,
-                        (existing, replacement) -> existing)); // 중복 시 기존 항목 유지
-
-
-            // 각 영화에 대해 장르 매핑 및 OTT 플랫폼 매핑 생성
-            for (TmdbMovieDetail movieDetail : chunk) {
-                // 영화 상세 정보 ID 가져오기
-                Long tmdbMovieDetailId;
-                if (existingDetails.containsKey(movieDetail.getTmdbId())) {
-                    tmdbMovieDetailId = existingDetails.get(movieDetail.getTmdbId()).getId();
-                } else {
-                    // 새로 삽입된 항목의 ID 조회
-                    Map<Long, TmdbMovieDetailDao.MovieDetailInfo> newItemInfo = tmdbMovieDetailDao.findExistingMovieDetails(
-                            List.of(movieDetail.getTmdbId())
-                    );
-                    if (newItemInfo.isEmpty()) {
-                        log.warn("Could not find movie detail ID for movie: {}", movieDetail.getTitle());
-                        continue;
-                    }
-                    tmdbMovieDetailId = newItemInfo.get(movieDetail.getTmdbId()).getId();
-                }
-
-                // 영화의 장르 ID 목록 가져오기
-                List<Integer> movieGenreIds = movieDetail.getGenreIds();
-                if (movieGenreIds != null && !movieGenreIds.isEmpty()) {
-                    // 영화의 장르 ID에 해당하는 MovieGenre ID 목록 생성
-                    List<Long> movieGenreDbIds = new ArrayList<>();
-                    for (Integer genreId : movieGenreIds) {
-                        MovieGenreDao.GenreInfo genreInfo = genreIdToGenreMap.get(genreId.longValue());
-                        if (genreInfo != null) {
-                            movieGenreDbIds.add(genreInfo.getId());
-                        } else {
-                            log.warn("Genre ID {} not found in database for movie: {}", genreId, movieDetail.getTitle());
-                        }
-                    }
-
-                    if (!movieGenreDbIds.isEmpty()) {
-                        int insertedMatchCount = movieGenreMatchDao.batchInsertGenreMatchesForMovie(tmdbMovieDetailId, movieGenreDbIds);
-                    }
-                } else {
-                    log.warn("No genre IDs found for movie: {}", movieDetail.getTitle());
-                }
-
-            }
+            // MovieGenreMatch 생성은 tmdbMovieDetailAndMovieWriter에서 처리됨
+            // 중복 생성 방지를 위해 여기서는 제거
+            log.debug("Movie 엔티티 처리 완료. MovieGenreMatch는 메인 Writer에서 처리됩니다.");
         }
     }
 }
