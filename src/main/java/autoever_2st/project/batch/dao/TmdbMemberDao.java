@@ -74,22 +74,20 @@ public class TmdbMemberDao {
     }
 
     /**
-     * 새 멤버 정보를 배치로 삽입
+     * 멤버 정보를 배치로 저장합니다.
+     * ON DUPLICATE KEY UPDATE를 사용하여 중복 시 자동으로 업데이트됩니다.
      * 
-     * @param members 삽입할 멤버 목록
-     * @return 삽입된 항목 수
+     * @param members 저장할 멤버 목록
+     * @return 처리된 항목 수
      */
     @Transactional
-    public int batchInsertMembers(List<TmdbMember> members) {
-        LocalDateTime now = LocalDateTime.now();
-
-        int beforeCount = getTotalCount();
-
-        try {
-            jdbcTemplate.execute("SELECT 1");
-        } catch (Exception e) {
-            log.warn("삽입 전 플러시를 강제로 실행하지 못함: {}", e.getMessage());
+    public int batchSaveMembers(List<TmdbMember> members) {
+        if (members.isEmpty()) {
+            return 0;
         }
+
+        LocalDateTime now = LocalDateTime.now();
+        log.info("멤버 배치 저장 시작 - {}개 항목", members.size());
 
         int result = JdbcUtils.executeBatchUpdate(
                 jdbcTemplate,
@@ -115,121 +113,10 @@ public class TmdbMemberDao {
                         return members.size();
                     }
                 },
-                "insert"
+                "save"
         );
 
-        try {
-            jdbcTemplate.execute((java.sql.Connection conn) -> {
-                if (!conn.getAutoCommit()) {
-                    conn.commit();
-                }
-                return null;
-            });
-
-            jdbcTemplate.execute("SELECT 1");
-        } catch (Exception e) {
-            log.warn("삽입 후 커밋/플러시를 강제로 실행하지 못함: {}", e.getMessage());
-        }
-
-        if (result > 0) {
-            try {
-                List<Long> sampleTmdbIds = members.stream()
-                        .limit(Math.min(5, members.size()))
-                        .map(TmdbMember::getTmdbId)
-                        .collect(java.util.stream.Collectors.toList());
-
-                Map<Long, MemberInfo> verificationMap = findExistingMembers(sampleTmdbIds);
-
-                int afterCount = getTotalCount();
-
-                if (afterCount <= beforeCount) {
-                    log.warn("삽입 후 카운트가 증가하지 않음. 트랜잭션 문제일 가능성");
-                }
-            } catch (Exception e) {
-                log.error("삽입 후 검증 중 오류 발생: {}", e.getMessage(), e);
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * 기존 멤버 정보를 배치로 업데이트
-     * 
-     * @param members 업데이트할 멤버 목록
-     * @param existingMembers 기존 멤버 맵
-     * @return 업데이트된 항목 수
-     */
-    @Transactional
-    public int batchUpdateMembers(List<TmdbMember> members, Map<Long, MemberInfo> existingMembers) {
-        LocalDateTime now = LocalDateTime.now();
-
-        int beforeCount = getTotalCount();
-
-        try {
-            jdbcTemplate.execute("SELECT 1");
-        } catch (Exception e) {
-            log.warn("업데이트 전에 플러시를 강제로 실행하지 못함: {}", e.getMessage());
-        }
-
-        int result = JdbcUtils.executeBatchUpdate(
-                jdbcTemplate,
-                SqlConstants.UPDATE_MEMBER,
-                members,
-                new BatchPreparedStatementSetter() {
-                    @Override
-                    public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        TmdbMember member = members.get(i);
-                        MemberInfo existingInfo = existingMembers.get(member.getTmdbId());
-
-                        if (existingInfo == null) {
-                            throw new SQLException("TMDb ID에 대한 기존 멤버 정보를 찾을 수 없음: " + member.getTmdbId());
-                        }
-
-                        ps.setString(1, member.getName());
-                        ps.setString(2, member.getOriginalName());
-                        ps.setString(3, member.getProfilePath());
-                        ps.setObject(4, now);
-                        ps.setLong(5, existingInfo.getId());
-                    }
-
-                    @Override
-                    public int getBatchSize() {
-                        return members.size();
-                    }
-                },
-                "update"
-        );
-
-        try {
-            jdbcTemplate.execute((java.sql.Connection conn) -> {
-                if (!conn.getAutoCommit()) {
-                    conn.commit();
-                }
-                return null;
-            });
-
-            jdbcTemplate.execute("SELECT 1");
-        } catch (Exception e) {
-            log.warn("업데이트 후 커밋/플러시를 강제로 실행하지 못함: {}", e.getMessage());
-        }
-
-        if (result > 0) {
-            try {
-                int afterCount = getTotalCount();
-
-                List<Long> sampleTmdbIds = members.stream()
-                        .limit(Math.min(5, members.size()))
-                        .map(TmdbMember::getTmdbId)
-                        .collect(java.util.stream.Collectors.toList());
-
-                Map<Long, MemberInfo> verificationMap = findExistingMembers(sampleTmdbIds);
-
-            } catch (Exception e) {
-                log.error("업데이트 후 검증 중 오류 발생: {}\n", e.getMessage(), e);
-            }
-        }
-
+        log.info("멤버 배치 저장 완료 - {}개 처리됨", result);
         return result;
     }
 

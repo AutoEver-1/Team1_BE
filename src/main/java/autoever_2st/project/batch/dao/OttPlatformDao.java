@@ -84,15 +84,21 @@ public class OttPlatformDao {
     }
 
     /**
-     * 새 OTT 플랫폼 정보를 배치로 삽입합니다.
+     * OTT 플랫폼 정보를 배치로 저장합니다.
+     * ON DUPLICATE KEY UPDATE를 사용하여 중복 시 자동으로 업데이트됩니다.
      * 
-     * @param ottPlatforms 삽입할 OTT 플랫폼 목록
-     * @return 삽입된 항목 수
+     * @param ottPlatforms 저장할 OTT 플랫폼 목록
+     * @return 처리된 항목 수
      */
-    public int batchInsertOttPlatforms(List<OttPlatform> ottPlatforms) {
-        LocalDateTime now = LocalDateTime.now();
+    public int batchSaveOttPlatforms(List<OttPlatform> ottPlatforms) {
+        if (ottPlatforms.isEmpty()) {
+            return 0;
+        }
 
-        return JdbcUtils.executeBatchUpdate(
+        LocalDateTime now = LocalDateTime.now();
+        log.info("OTT 플랫폼 배치 저장 시작 - {}개 항목", ottPlatforms.size());
+
+        int result = JdbcUtils.executeBatchUpdate(
                 jdbcTemplate,
                 SqlConstants.INSERT_OTT_PLATFORM,
                 ottPlatforms,
@@ -111,60 +117,11 @@ public class OttPlatformDao {
                         return ottPlatforms.size();
                     }
                 },
-                "insert"
+                "save"
         );
-    }
 
-    /**
-     * 기존 OTT 플랫폼 정보를 배치로 업데이트합니다.
-     * 
-     * @param ottPlatforms 업데이트할 OTT 플랫폼 목록
-     * @param existingOttPlatforms 기존 OTT 플랫폼 맵
-     * @return 업데이트된 항목 수
-     */
-    public int batchUpdateOttPlatforms(List<OttPlatform> ottPlatforms, Map<Long, OttPlatformInfo> existingOttPlatforms) {
-        LocalDateTime now = LocalDateTime.now();
-
-        // 업데이트가 필요한 OTT 플랫폼만 필터링
-        List<OttPlatform> ottPlatformsToUpdate = ottPlatforms.stream()
-                .filter(ottPlatform -> {
-                    OttPlatformInfo existingOttPlatform = existingOttPlatforms.get(ottPlatform.getTmdbOttId());
-                    return existingOttPlatform != null && !existingOttPlatform.getName().equals(ottPlatform.getName());
-                })
-                .collect(Collectors.toList());
-
-        if (ottPlatformsToUpdate.isEmpty()) {
-            log.info("No OTT platforms need to be updated");
-            return 0;
-        }
-
-        return JdbcUtils.executeBatchUpdate(
-                jdbcTemplate,
-                SqlConstants.UPDATE_OTT_PLATFORM,
-                ottPlatformsToUpdate,
-                new BatchPreparedStatementSetter() {
-                    @Override
-                    public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        OttPlatform ottPlatform = ottPlatformsToUpdate.get(i);
-                        OttPlatformInfo existingOttPlatform = existingOttPlatforms.get(ottPlatform.getTmdbOttId());
-
-                        if (existingOttPlatform == null) {
-                            log.error("Existing OTT platform not found for OTT platform ID: {}", ottPlatform.getTmdbOttId());
-                            throw new SQLException("Existing OTT platform not found for OTT platform ID: " + ottPlatform.getTmdbOttId());
-                        }
-
-                        ps.setString(1, ottPlatform.getName());
-                        ps.setObject(2, now);
-                        ps.setLong(3, existingOttPlatform.getId());
-                    }
-
-                    @Override
-                    public int getBatchSize() {
-                        return ottPlatformsToUpdate.size();
-                    }
-                },
-                "update"
-        );
+        log.info("OTT 플랫폼 배치 저장 완료 - {}개 처리됨", result);
+        return result;
     }
 
     /**
