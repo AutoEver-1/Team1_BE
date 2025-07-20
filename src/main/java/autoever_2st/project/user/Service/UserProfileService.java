@@ -4,7 +4,7 @@ import autoever_2st.project.external.entity.tmdb.MovieGenre;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.repository.tmdb.MovieGenreMatchRepository;
 import autoever_2st.project.external.repository.tmdb.TmdbMovieImageRepository;
-import autoever_2st.project.movie.Repository.MovieWishlistRepository;
+import autoever_2st.project.movie.repository.MovieWishlistRepository;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.user.Entity.Follow.MemberFollowing;
 import autoever_2st.project.user.Entity.Member;
