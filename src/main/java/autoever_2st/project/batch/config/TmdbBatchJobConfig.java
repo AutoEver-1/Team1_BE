@@ -1,5 +1,6 @@
 package autoever_2st.project.batch.config;
 
+import autoever_2st.project.batch.dto.CompanyMovieMappingDto;
 import autoever_2st.project.batch.dto.MovieImagesDto;
 import autoever_2st.project.batch.dto.MovieVideosDto;
 import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
@@ -7,6 +8,7 @@ import autoever_2st.project.batch.processor.TmdbBatchProcessor;
 import autoever_2st.project.batch.reader.TmdbBatchReader;
 import autoever_2st.project.batch.writer.TmdbBatchWriter;
 import autoever_2st.project.external.dto.tmdb.common.movie.CreditsWrapperDto;
+import autoever_2st.project.external.dto.tmdb.common.movie.MovieDetailWrapperDto;
 import autoever_2st.project.external.dto.tmdb.response.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
 import autoever_2st.project.external.entity.tmdb.MovieGenre;
@@ -54,7 +56,9 @@ public class TmdbBatchJobConfig {
                 .incrementer(new RunIdIncrementer()) // 동일한 파라미터로 여러 번 실행 가능
                 .start(fetchGenreStep()) // 먼저 장르 정보 로드
                 .next(fetchOttPlatformStep()) // 그 다음 OTT 플랫폼 정보 로드
-                .next(fetchMovieDiscoverStep()) // 그 다음 영화 정보 로드
+                .next(fetchMovieDiscoverStep()) // 그 다음 영화 정보 로드 (Movie 엔티티도 함께 생성)
+                .next(fetchProductCompanyStep()) // 제작사 정보 및 Runtime 업데이트
+                .next(fetchCompanyMovieMappingStep()) // 영화-제작사 매핑 관계 생성
                 .next(fetchMovieWatchProvidersStep()) // 그 다음 영화 OTT 제공자 정보 로드
                 .next(fetchMovieImagesStep()) // 그 다음 영화 이미지 정보 로드
                 .next(fetchMovieVideosStep()) // 그 다음 영화 비디오 정보 로드
@@ -71,7 +75,7 @@ public class TmdbBatchJobConfig {
                 .<List<MovieResponseDto>, List<TmdbMovieDetail>>chunk(1, transactionManager)
                 .reader(tmdbBatchReader.parallelMoviePageReader()) // 병렬 데이터 가져오기 사용
                 .processor(tmdbBatchProcessor.movieDetailListProcessor())
-                .writer(tmdbBatchWriter.tmdbMovieDetailPageWriter())
+                .writer(tmdbBatchWriter.tmdbMovieDetailAndMovieWriter()) // TmdbMovieDetail과 Movie를 함께 저장
                 .build();
     }
     /**
@@ -97,6 +101,19 @@ public class TmdbBatchJobConfig {
                 .reader(tmdbBatchReader.ottReader())
                 .processor(tmdbBatchProcessor.ottPlatformListProcessor())
                 .writer(tmdbBatchWriter.tmdbOttPlatformWriter())
+                .build();
+    }
+
+    /**
+     * 제작사 정보를 가져오는 Step
+     */
+    @Bean
+    public Step fetchProductCompanyStep() {
+        return new StepBuilder("fetchProductCompanyStep", jobRepository)
+                .<List<MovieDetailWrapperDto>, TmdbBatchProcessor.ProductCompanyProcessResult>chunk(1, transactionManager)
+                .reader(tmdbBatchReader.parallelMovieDetailReader())
+                .processor(tmdbBatchProcessor.movieDetailToProductCompanyProcessor())
+                .writer(tmdbBatchWriter.productCompanyWriter())
                 .build();
     }
 
@@ -149,6 +166,19 @@ public class TmdbBatchJobConfig {
                 .reader(tmdbBatchReader.parallelMovieCreditsReader())
                 .processor(tmdbBatchProcessor.movieCreditsProcessor())
                 .writer(tmdbBatchWriter.movieCreditsWriter())
+                .build();
+    }
+
+    /**
+     * 영화-제작사 매핑 관계를 생성하는 Step
+     */
+    @Bean
+    public Step fetchCompanyMovieMappingStep() {
+        return new StepBuilder("fetchCompanyMovieMappingStep", jobRepository)
+                .<List<CompanyMovieMappingDto>, TmdbBatchProcessor.CompanyMovieMappingResult>chunk(1, transactionManager)
+                .reader(tmdbBatchReader.parallelCompanyMovieMappingReader())
+                .processor(tmdbBatchProcessor.companyMovieMappingProcessor())
+                .writer(tmdbBatchWriter.companyMovieMappingWriter())
                 .build();
     }
 
