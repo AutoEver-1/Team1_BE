@@ -7,14 +7,23 @@ import autoever_2st.project.movie.dto.response.BoxOfficeResponseDto;
 import autoever_2st.project.movie.dto.response.ExpectedReleaseMovieListDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
 import autoever_2st.project.movie.dto.response.RecentlyReleaseMovieListDto;
+import autoever_2st.project.movie.service.MovieWishlistService;
+import autoever_2st.project.review.dto.request.ReviewRequestDto;
+import autoever_2st.project.user.Service.CustomUserDetails;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
 @RestController
 @RequestMapping("/movie")
+@RequiredArgsConstructor
 public class MovieController {
+
+
+    private final MovieWishlistService movieWishlistService;
 
     // 영화 제목/배우/감독 검색
     @GetMapping
@@ -160,6 +169,24 @@ public class MovieController {
         MovieDetailDto movieDetail = createMockMovieDetail(movieId);
         return ApiResponse.success(movieDetail, HttpStatus.OK.value());
     }
+
+    //위치리스트 추가 삭제
+    // 위시리스트에 영화 추가
+    @PostMapping("/{movieId}/wish")
+    public void addMovieToWishlist(@PathVariable Long movieId,
+                                   @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long memberId = userDetails.getMember().getId();
+        movieWishlistService.addMovieToWishlist(memberId, movieId);
+    }
+
+    // 위시리스트에서 영화 삭제
+    @DeleteMapping("/{movieId}/wish")
+    public void removeMovieFromWishlist(@PathVariable Long movieId,
+                                        @AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long memberId = userDetails.getMember().getId();
+        movieWishlistService.removeMovieFromWishlist(memberId, movieId);
+    }
+
 
     private List<MovieDto> createMockMovieList(int count, String posterPath) {
         List<MovieDto> movieList = new ArrayList<>();
