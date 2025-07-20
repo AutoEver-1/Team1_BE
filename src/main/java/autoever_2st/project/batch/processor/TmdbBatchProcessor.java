@@ -1,18 +1,25 @@
 package autoever_2st.project.batch.processor;
 
+import autoever_2st.project.batch.dao.*;
+import autoever_2st.project.batch.dao.CompanyMovieDao;
+import autoever_2st.project.batch.dao.MovieDao;
 import autoever_2st.project.batch.dao.OttPlatformDao;
+import autoever_2st.project.batch.dao.ProductCompanyDao;
 import autoever_2st.project.batch.dao.TmdbMemberDao;
 import autoever_2st.project.batch.dao.TmdbMovieDetailDao;
+import autoever_2st.project.batch.dto.CompanyMovieMappingDto;
+import autoever_2st.project.batch.dto.KoficTmdbMappingDto;
+import autoever_2st.project.batch.dto.KoficTmdbProcessedData;
 import autoever_2st.project.batch.dto.MovieImagesDto;
 import autoever_2st.project.batch.dto.MovieVideosDto;
 import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
 import autoever_2st.project.external.dto.tmdb.common.movie.CreditsWrapperDto;
+import autoever_2st.project.external.dto.tmdb.common.movie.MovieDetailWrapperDto;
 import autoever_2st.project.external.dto.tmdb.response.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
 import autoever_2st.project.external.entity.tmdb.*;
 import autoever_2st.project.external.enums.Gender;
 import autoever_2st.project.external.repository.tmdb.TmdbMovieDetailRepository;
-import autoever_2st.project.external.repository.tmdb.TmdbMemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ItemProcessor;
@@ -34,6 +41,9 @@ public class TmdbBatchProcessor {
     private final OttPlatformDao ottPlatformDao;
     private final TmdbMemberDao tmdbMemberDao;
     private final TmdbMovieDetailRepository tmdbMovieDetailRepository;
+    private final TmdbMovieDetailDao tmdbMovieDetailDao;
+    private final ProductCompanyDao productCompanyDao;
+    private final MovieDao movieDao;
 
     /**
      * 영화 ID를 받아 영화 상세 정보를 가져오고 엔티티로 변환하는 Processor
@@ -630,6 +640,312 @@ public class TmdbBatchProcessor {
             result.put("crewToMemberTmdbIdMap", crewToMemberTmdbIdMap);
 
             return result;
+        };
+    }
+
+    /**
+     * 영화 상세 정보에서 제작사 정보와 runtime을 추출하여 처리하는 Processor
+     * 
+     * @return 제작사 정보와 runtime 업데이트 정보를 처리하는 ItemProcessor
+     */
+    public ItemProcessor<List<MovieDetailWrapperDto>, ProductCompanyProcessResult> movieDetailToProductCompanyProcessor() {
+        return movieDetails -> {
+            if (movieDetails == null || movieDetails.isEmpty()) {
+                log.warn("빈 영화 상세 정보 목록 수신");
+                return new ProductCompanyProcessResult(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+            }
+
+            log.info("제작사 정보 추출 시작 - {}개 영화", movieDetails.size());
+
+            // 제작사 ID를 HashSet에 저장하여 중복 제거
+            Set<Integer> uniqueCompanyIds = new HashSet<>();
+            List<ProductCompany> productCompanies = new ArrayList<>();
+            List<TmdbMovieDetailDao.MovieRuntimeUpdate> runtimeUpdates = new ArrayList<>();
+            List<CompanyMovieMapping> companyMovieMappings = new ArrayList<>();
+
+            int processedMovies = 0;
+            int moviesWithCompanies = 0;
+            int moviesWithRuntime = 0;
+            int totalCompanies = 0;
+
+            for (MovieDetailWrapperDto movieDetail : movieDetails) {
+                try {
+                    processedMovies++;
+
+                    // Runtime 업데이트 정보 수집
+                    if (movieDetail.getRuntime() != null && movieDetail.getRuntime() > 0) {
+                        runtimeUpdates.add(new TmdbMovieDetailDao.MovieRuntimeUpdate(
+                                movieDetail.getId().longValue(), 
+                                movieDetail.getRuntime()
+                        ));
+                        moviesWithRuntime++;
+                    }
+
+                    // Production Companies 정보 수집
+                    if (movieDetail.getProductionCompanies() != null && !movieDetail.getProductionCompanies().isEmpty()) {
+                        moviesWithCompanies++;
+                        
+                        for (ProductionCompanyDto companyDto : movieDetail.getProductionCompanies()) {
+                            if (companyDto.getId() != null) {
+                                totalCompanies++;
+                                
+                                // HashSet을 사용하여 중복 제거
+                                if (uniqueCompanyIds.add(companyDto.getId())) {
+                                    // 새로운 제작사인 경우에만 추가
+                                    ProductCompany productCompany = new ProductCompany(
+                                            companyDto.getId().longValue(),
+                                            companyDto.getName(),
+                                            null, // homepage는 detail API에서만 제공
+                                            companyDto.getOriginCountry(),
+                                            null, // description은 detail API에서만 제공
+                                            companyDto.getLogoPath()
+                                    );
+                                    productCompanies.add(productCompany);
+                                }
+
+                                // 영화-제작사 매핑 정보 추가
+                                companyMovieMappings.add(new CompanyMovieMapping(
+                                        movieDetail.getId().longValue(),
+                                        companyDto.getId().longValue()
+                                ));
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("영화 ID {} 처리 중 오류 발생: {}", movieDetail.getId(), e.getMessage(), e);
+                }
+            }
+
+            log.info("제작사 정보 추출 완료 - 처리된 영화: {}개, 제작사 보유 영화: {}개, Runtime 보유 영화: {}개", 
+                    processedMovies, moviesWithCompanies, moviesWithRuntime);
+            log.info("총 제작사 언급: {}개, 고유 제작사: {}개, 영화-제작사 매핑: {}개", 
+                    totalCompanies, productCompanies.size(), companyMovieMappings.size());
+
+            return new ProductCompanyProcessResult(productCompanies, runtimeUpdates, companyMovieMappings);
+        };
+    }
+
+    /**
+     * 제작사 처리 결과를 담는 클래스
+     */
+    public static class ProductCompanyProcessResult {
+        private final List<ProductCompany> productCompanies;
+        private final List<TmdbMovieDetailDao.MovieRuntimeUpdate> runtimeUpdates;
+        private final List<CompanyMovieMapping> companyMovieMappings;
+
+        public ProductCompanyProcessResult(List<ProductCompany> productCompanies, 
+                                         List<TmdbMovieDetailDao.MovieRuntimeUpdate> runtimeUpdates,
+                                         List<CompanyMovieMapping> companyMovieMappings) {
+            this.productCompanies = productCompanies;
+            this.runtimeUpdates = runtimeUpdates;
+            this.companyMovieMappings = companyMovieMappings;
+        }
+
+        public List<ProductCompany> getProductCompanies() {
+            return productCompanies;
+        }
+
+        public List<TmdbMovieDetailDao.MovieRuntimeUpdate> getRuntimeUpdates() {
+            return runtimeUpdates;
+        }
+
+        public List<CompanyMovieMapping> getCompanyMovieMappings() {
+            return companyMovieMappings;
+        }
+    }
+
+    /**
+     * 영화-제작사 매핑 정보를 담는 클래스
+     */
+    public static class CompanyMovieMapping {
+        private final Long tmdbMovieId;
+        private final Long tmdbCompanyId;
+
+        public CompanyMovieMapping(Long tmdbMovieId, Long tmdbCompanyId) {
+            this.tmdbMovieId = tmdbMovieId;
+            this.tmdbCompanyId = tmdbCompanyId;
+        }
+
+        public Long getTmdbMovieId() {
+            return tmdbMovieId;
+        }
+
+        public Long getTmdbCompanyId() {
+            return tmdbCompanyId;
+        }
+    }
+
+    /**
+     * 영화-제작사 매핑 정보를 처리하는 Processor
+     * 대량의 ID 조회를 한번에 처리하여 성능을 최적화
+     * 
+     * @return 영화-제작사 매핑 정보를 처리하는 ItemProcessor
+     */
+    public ItemProcessor<List<CompanyMovieMappingDto>, CompanyMovieMappingResult> companyMovieMappingProcessor() {
+        return mappingDtos -> {
+            if (mappingDtos == null || mappingDtos.isEmpty()) {
+                log.warn("빈 영화-제작사 매핑 목록 수신");
+                return new CompanyMovieMappingResult(new ArrayList<>());
+            }
+
+            log.info("영화-제작사 매핑 처리 시작 - {}개 영화", mappingDtos.size());
+
+            // 모든 TMDB 영화 ID와 제작사 ID를 한번에 수집
+            Set<Long> allTmdbMovieIds = new HashSet<>();
+            Set<Long> allTmdbCompanyIds = new HashSet<>();
+            
+            for (CompanyMovieMappingDto mappingDto : mappingDtos) {
+                allTmdbMovieIds.add(mappingDto.getTmdbMovieId());
+                for (CompanyMovieMappingDto.CompanyInfo companyInfo : mappingDto.getProductionCompanies()) {
+                    allTmdbCompanyIds.add(companyInfo.getTmdbCompanyId());
+                }
+            }
+
+            log.info("수집된 ID - 영화: {}개, 제작사: {}개", allTmdbMovieIds.size(), allTmdbCompanyIds.size());
+
+            // 한번에 대량 조회 - 성능 최적화
+            Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetailMap = 
+                    tmdbMovieDetailDao.findExistingMovieDetails(new ArrayList<>(allTmdbMovieIds));
+            
+            Map<Long, ProductCompanyDao.ProductCompanyInfo> productCompanyMap = 
+                    productCompanyDao.findExistingProductCompanies(new ArrayList<>(allTmdbCompanyIds));
+
+            // TmdbMovieDetail ID로 Movie 조회
+            Map<Long, MovieDao.MovieInfo> movieMap = new HashMap<>();
+            if (!movieDetailMap.isEmpty()) {
+                List<Long> tmdbMovieDetailIds = movieDetailMap.values().stream()
+                        .map(TmdbMovieDetailDao.MovieDetailInfo::getId)
+                        .collect(Collectors.toList());
+                movieMap = movieDao.findExistingMoviesByTmdbDetailId(tmdbMovieDetailIds);
+            }
+
+            log.info("DB 조회 완료 - MovieDetail: {}개, ProductCompany: {}개, Movie: {}개", 
+                    movieDetailMap.size(), productCompanyMap.size(), movieMap.size());
+
+            // 매핑 관계 생성
+            List<CompanyMovieDao.MovieProductCompanyMapping> mappings = new ArrayList<>();
+            int validMappings = 0;
+            int skippedMappings = 0;
+
+            for (CompanyMovieMappingDto mappingDto : mappingDtos) {
+                TmdbMovieDetailDao.MovieDetailInfo movieDetailInfo = movieDetailMap.get(mappingDto.getTmdbMovieId());
+                
+                if (movieDetailInfo == null) {
+                    log.debug("영화 ID {}에 대한 MovieDetail 정보 없음", mappingDto.getTmdbMovieId());
+                    skippedMappings++;
+                    continue;
+                }
+
+                MovieDao.MovieInfo movieInfo = movieMap.get(movieDetailInfo.getId());
+                if (movieInfo == null) {
+                    log.debug("TmdbMovieDetail ID {}에 대한 Movie 정보 없음", movieDetailInfo.getId());
+                    skippedMappings++;
+                    continue;
+                }
+
+                for (CompanyMovieMappingDto.CompanyInfo companyInfo : mappingDto.getProductionCompanies()) {
+                    ProductCompanyDao.ProductCompanyInfo productCompanyInfo = 
+                            productCompanyMap.get(companyInfo.getTmdbCompanyId());
+                    
+                    if (productCompanyInfo != null) {
+                        mappings.add(new CompanyMovieDao.MovieProductCompanyMapping(
+                                movieInfo.getId(),
+                                productCompanyInfo.getId()
+                        ));
+                        validMappings++;
+                    } else {
+                        log.debug("제작사 ID {}에 대한 ProductCompany 정보 없음", companyInfo.getTmdbCompanyId());
+                        skippedMappings++;
+                    }
+                }
+            }
+
+            log.info("영화-제작사 매핑 처리 완료 - 유효: {}개, 스킵: {}개", validMappings, skippedMappings);
+
+            return new CompanyMovieMappingResult(mappings);
+        };
+    }
+
+    /**
+     * 영화-제작사 매핑 처리 결과를 담는 클래스
+     */
+    public static class CompanyMovieMappingResult {
+        private final List<CompanyMovieDao.MovieProductCompanyMapping> mappings;
+
+        public CompanyMovieMappingResult(List<CompanyMovieDao.MovieProductCompanyMapping> mappings) {
+            this.mappings = mappings;
+        }
+
+        public List<CompanyMovieDao.MovieProductCompanyMapping> getMappings() {
+            return mappings;
+        }
+    }
+
+    /**
+     * KOFIC-TMDB 매핑 데이터를 처리하는 Processor
+     * 이미 존재하는 TMDB 데이터는 매핑만 수행하고, 새로운 TMDB 데이터는 전체 엔티티를 생성합니다.
+     */
+    public ItemProcessor<List<KoficTmdbMappingDto>, List<KoficTmdbProcessedData>> koficTmdbMappingProcessor() {
+        return koficTmdbMappingList -> {
+            if (koficTmdbMappingList == null || koficTmdbMappingList.isEmpty()) {
+                return null;
+            }
+
+            List<KoficTmdbProcessedData> processedDataList = new ArrayList<>();
+
+            for (KoficTmdbMappingDto mappingDto : koficTmdbMappingList) {
+                try {
+                    if (mappingDto.isExistingMapping()) {
+                        // 기존 TMDB 영화와 매핑만 수행
+                        processedDataList.add(new KoficTmdbProcessedData(
+                            mappingDto.getKoficMovie(),
+                            mappingDto.getExistingTmdbMovie(),
+                            true
+                        ));
+                        log.debug("기존 TMDB 영화와 매핑: KOFIC={}, TMDB ID={}", 
+                                mappingDto.getKoficMovie().getName(), 
+                                mappingDto.getExistingTmdbMovie().getTmdbId());
+                    } else {
+                        // 새로운 TMDB 영화 데이터 생성
+                        MovieResponseDto tmdbMovie = mappingDto.getNewTmdbMovie();
+                        
+                        // MovieResponseDto를 TmdbMovieDetail 엔티티로 변환
+                        TmdbMovieDetail tmdbMovieDetail = new TmdbMovieDetail(
+                            tmdbMovie.getAdult() != null ? tmdbMovie.getAdult() : false,
+                            tmdbMovie.getId().longValue(),
+                            tmdbMovie.getTitle(),
+                            tmdbMovie.getOriginalTitle(),
+                            tmdbMovie.getOriginalLanguage(),
+                            tmdbMovie.getOverview(),
+                            null, // status는 detail API에서만 제공
+                            null, // releaseDate는 Date 타입으로 변환 필요시 처리
+                            null, // runtime은 detail API에서만 제공
+                            tmdbMovie.getVideo(),
+                            tmdbMovie.getVoteAverage(),
+                            tmdbMovie.getVoteCount().longValue(),
+                            tmdbMovie.getPopularity(),
+                            "movie"
+                        );
+
+                        processedDataList.add(new KoficTmdbProcessedData(
+                            mappingDto.getKoficMovie(),
+                            tmdbMovieDetail,
+                            false
+                        ));
+                        
+                        log.info("새로운 TMDB 영화 생성: KOFIC={}, TMDB ID={}", 
+                                mappingDto.getKoficMovie().getName(), tmdbMovie.getId());
+                    }
+                } catch (Exception e) {
+                    log.error("KOFIC-TMDB 매핑 처리 중 오류 발생: KOFIC={}, 오류={}", 
+                            mappingDto.getKoficMovie().getName(), e.getMessage(), e);
+                }
+            }
+
+            log.info("KOFIC-TMDB 매핑 처리 완료: 총 {}개 중 {}개 처리됨", 
+                    koficTmdbMappingList.size(), processedDataList.size());
+
+            return processedDataList.isEmpty() ? null : processedDataList;
         };
     }
 }
