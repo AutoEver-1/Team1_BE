@@ -1,6 +1,6 @@
 package autoever_2st.project.movie.service;
 
-public interface MovieWishListService {
+public interface MovieWishlistService {
 
     public void addMovieToWishlist(Long memberId, Long movieId);
 
