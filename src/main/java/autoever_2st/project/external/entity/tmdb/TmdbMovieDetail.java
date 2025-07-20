@@ -12,7 +12,8 @@ import java.util.Date;
 import java.util.List;
 
 @Entity
-@Table(name = "tmdb_movie_detail")
+@Table(name = "tmdb_movie_detail", 
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_id"))
 @Getter
 @NoArgsConstructor
 public class TmdbMovieDetail extends TimeStamp {
@@ -23,7 +24,7 @@ public class TmdbMovieDetail extends TimeStamp {
     @Column(name = "is_adult", nullable = false)
     private Boolean isAdult;
 
-    @Column(name = "tmdb_id", nullable = false)
+    @Column(name = "tmdb_id", nullable = false, unique = true)
     private Long tmdbId;
 
     @Column(name = "title", nullable = false)

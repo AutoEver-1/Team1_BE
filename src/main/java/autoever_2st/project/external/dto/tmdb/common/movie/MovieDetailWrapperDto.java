@@ -18,7 +18,7 @@ public class MovieDetailWrapperDto extends MovieResponseDto {
     private Object belongsToCollection;
 
     @JsonProperty("budget")
-    private Integer budget;
+    private Long budget;
 
     @JsonProperty("genres")
     private List<GenreDto> genres;
@@ -39,7 +39,7 @@ public class MovieDetailWrapperDto extends MovieResponseDto {
     private List<ProductionCountryDto> productionCountries;
 
     @JsonProperty("revenue")
-    private Integer revenue;
+    private Long revenue;
 
     @JsonProperty("runtime")
     private Integer runtime;

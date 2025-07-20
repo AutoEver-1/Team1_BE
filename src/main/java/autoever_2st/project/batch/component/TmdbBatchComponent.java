@@ -342,4 +342,19 @@ public class TmdbBatchComponent {
         log.info("영화 시청 서비스 제공업체 가져오기가 완료되었습니다. 제공업체가 있는 총 항목 수: {}", allProviders.size());
         return allProviders;
     }
+
+    /**
+     * 영화 Crdit 정보를 가져옴 (cast, crew).
+     *
+     * @param movieId tmdb movie id
+     * @return 영화 ID에 대한 Credit 정보 데이터 (cast - 배우, crew - 영화 제작진)
+     */
+    public CreditsWrapperDto fetchMovieCredits(Long movieId) {
+        try {
+            return tmdbMovieApiComponent.getMovieCredits(movieId);
+        } catch (Exception e) {
+            log.error("영화 ID에 대한 영화 비디오를 가져오는 중 오류 발생 {}: {}", movieId, e.getMessage(), e);
+            return new CreditsWrapperDto(-1, null, null);
+        }
+    }
 }

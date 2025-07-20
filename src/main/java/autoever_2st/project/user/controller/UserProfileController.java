@@ -34,9 +34,10 @@ public class UserProfileController {
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
-    public ApiResponse<UserProfileDto> getUserProfile(@PathVariable Long memberId, @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ApiResponse<UserProfileDto> getUserProfile(@AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long memberId) {
 
         Long viewerId = userDetails.getMember().getId();  // 로그인한 사용자 ID
+        //로그인 안 한 경우도 고려해서 볼 수 있게 해야함
         UserProfileDto userProfile = userProfileService.getUserProfile(viewerId, memberId);
         return ApiResponse.success(userProfile, HttpStatus.OK.value());
     }

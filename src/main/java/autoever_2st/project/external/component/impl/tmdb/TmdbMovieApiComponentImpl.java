@@ -62,6 +62,22 @@ public class TmdbMovieApiComponentImpl extends TmdbApiComponentImpl {
         }
     }
 
+    public SearchMovieWrapperDto getSearchMovieList(String name, Integer page) {
+        try {
+            return restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/search/movie")
+                            .queryParam("api_key", getApiKey())
+                            .queryParam("query", name)
+                            .queryParam("page", page)
+                            .queryParam("language", "ko-KR")
+                            .build())
+                    .retrieve()
+                    .body(SearchMovieWrapperDto.class);
+        } catch (Exception e) {
+            throw new RuntimeException("getSearchMovieList 에러 발생", e);
+        }
+    }
+
     // total page 242, result 4836
     public NowPlayingMovieWrapperDto getNowPlayingMovieList(Integer page) {
         try {
@@ -136,7 +152,7 @@ public class TmdbMovieApiComponentImpl extends TmdbApiComponentImpl {
                     .retrieve()
                     .body(MovieDetailWrapperDto.class);
         } catch (Exception e) {
-            throw new BusinessException("getMovieDetail 에러 발생", HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new RuntimeException("getMovieDetail 에러 발생", e);
         }
     }
 

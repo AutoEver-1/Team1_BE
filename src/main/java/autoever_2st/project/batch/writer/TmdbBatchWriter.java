@@ -1,11 +1,11 @@
 package autoever_2st.project.batch.writer;
 
 import autoever_2st.project.batch.dao.*;
-import autoever_2st.project.external.entity.tmdb.MovieGenre;
-import autoever_2st.project.external.entity.tmdb.OttPlatform;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
-import autoever_2st.project.external.entity.tmdb.TmdbMovieVideo;
+import autoever_2st.project.batch.dto.KoficTmdbProcessedData;
+import autoever_2st.project.batch.processor.TmdbBatchProcessor;
+import autoever_2st.project.external.entity.tmdb.*;
+import autoever_2st.project.external.repository.tmdb.TmdbMovieDetailRepository;
+import autoever_2st.project.external.repository.tmdb.TmdbMemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ItemWriter;
@@ -17,11 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionCallbackWithoutResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 영화 상세 정보 엔티티를 저장하는 Writer
@@ -41,6 +45,7 @@ import java.util.stream.Collectors;
 public class TmdbBatchWriter {
 
     private final TmdbMovieDetailDao tmdbMovieDetailDao;
+    private final TmdbMovieDetailRepository tmdbMovieDetailRepository;
     private final MovieGenreDao movieGenreDao;
     private final MovieDao movieDao;
     private final MovieGenreMatchDao movieGenreMatchDao;
@@ -48,142 +53,271 @@ public class TmdbBatchWriter {
     private final TmdbMovieDetailOttDao tmdbMovieDetailOttDao;
     private final TmdbMovieImagesDao tmdbMovieImagesDao;
     private final TmdbMovieVideoDao tmdbMovieVideoDao;
+    private final TmdbMemberDao tmdbMemberDao;
+    private final TmdbMovieCastDao tmdbMovieCastDao;
+    private final TmdbMovieCrewDao tmdbMovieCrewDao;
+    private final TmdbMemberRepository tmdbMemberRepository;
+    private final ProductCompanyDao productCompanyDao;
+    private final CompanyMovieDao companyMovieDao;
     private final PlatformTransactionManager transactionManager;
     private final JdbcTemplate jdbcTemplate;
 
     /**
-     * 페이지 단위로 영화 상세 정보 엔티티를 저장하는 Writer
+     * TmdbMovieDetail 엔티티를 저장하는 Writer (자동 insert/update)
      * 
-     * 이 메서드는 한 페이지의 모든 영화 데이터를 한 번에 처리합니다.
-     * 각 페이지는 이미 전처리된 TmdbMovieDetail 객체 목록입니다.
-     * 
-     * @return 페이지 단위로 영화 데이터를 저장하는 ItemWriter
+     * tmdb_id가 이미 존재하면 모든 필드를 자동으로 업데이트하고,
+     * 존재하지 않으면 새로 삽입합니다. (ON DUPLICATE KEY UPDATE 사용)
      */
-    @Transactional
     public ItemWriter<List<TmdbMovieDetail>> tmdbMovieDetailPageWriter() {
-        return pages -> {
-            if (pages == null || pages.isEmpty()) {
-                log.warn("No pages to process in tmdbMovieDetailPageWriter");
+        return chunk -> {
+            List<TmdbMovieDetail> validItems = new ArrayList<>();
+            for (List<TmdbMovieDetail> batch : chunk.getItems()) {
+                if (batch != null && !batch.isEmpty()) {
+                    validItems.addAll(batch);
+                }
+            }
+
+            if (validItems.isEmpty()) {
                 return;
             }
 
-            List<TmdbMovieDetail> pageItems = pages.getItems().get(0);
-            if (pageItems == null || pageItems.isEmpty()) {
-                log.warn("No items in the page to process in tmdbMovieDetailPageWriter");
-                return;
-            }
-
-            log.info("Processing page with {} items", pageItems.size());
-            processChunk(pageItems);
+            // tmdb_id UNIQUE 제약조건 + ON DUPLICATE KEY UPDATE로 자동 insert/update 처리
+            int result = tmdbMovieDetailDao.batchSaveItems(validItems);
+            log.info("TmdbMovieDetail {}개 저장/업데이트 완료", result);
         };
     }
 
     /**
-     * 장르 정보를 저장하는 Writer
+     * TmdbMovieDetail과 Movie 엔티티를 함께 저장하는 통합 Writer
      * 
-     * 이 메서드는 장르 목록을 처리하여 새 장르는 삽입하고 기존 장르는 업데이트합니다.
-     * 
-     * @return 장르 데이터를 저장하는 ItemWriter
+     * 1. TmdbMovieDetail 저장 (자동 insert/update)
+     * 2. Movie 엔티티 자동 생성
+     * 3. MovieGenreMatch 연관관계 생성
      */
-    @Transactional
+    public ItemWriter<List<TmdbMovieDetail>> tmdbMovieDetailAndMovieWriter() {
+        return chunk -> {
+            List<TmdbMovieDetail> validItems = new ArrayList<>();
+            for (List<TmdbMovieDetail> batch : chunk.getItems()) {
+                if (batch != null && !batch.isEmpty()) {
+                    validItems.addAll(batch);
+                }
+            }
+
+            if (validItems.isEmpty()) {
+                return;
+            }
+
+            // 1. TmdbMovieDetail 저장
+            int result = tmdbMovieDetailDao.batchSaveItems(validItems);
+            log.info("TmdbMovieDetail {}개 저장/업데이트 완료", result);
+
+            // 2. Movie 엔티티 자동 생성
+            try {
+                // TmdbMovieDetail ID들 수집
+                List<Long> tmdbIds = validItems.stream()
+                        .map(TmdbMovieDetail::getTmdbId)
+                        .collect(Collectors.toList());
+
+                // 기존 TmdbMovieDetail ID 조회
+                Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetailMap = 
+                        tmdbMovieDetailDao.findExistingMovieDetails(tmdbIds);
+
+                if (!movieDetailMap.isEmpty()) {
+                    // TmdbMovieDetail ID 목록 추출
+                    List<Long> tmdbMovieDetailIds = movieDetailMap.values().stream()
+                            .map(TmdbMovieDetailDao.MovieDetailInfo::getId)
+                            .collect(Collectors.toList());
+
+                    // 기존 Movie 엔티티 조회
+                    Map<Long, MovieDao.MovieInfo> existingMovies = 
+                            movieDao.findExistingMoviesByTmdbDetailId(tmdbMovieDetailIds);
+
+                    // 새로운 Movie 엔티티가 필요한 TmdbMovieDetail ID 찾기
+                    List<Long> newMovieTmdbDetailIds = tmdbMovieDetailIds.stream()
+                            .filter(id -> !existingMovies.containsKey(id))
+                            .collect(Collectors.toList());
+
+                    if (!newMovieTmdbDetailIds.isEmpty()) {
+                        int insertedMovieCount = movieDao.batchSaveMovies(newMovieTmdbDetailIds);
+                        log.info("새로운 Movie 엔티티 {}개 생성 완료", insertedMovieCount);
+                    } else {
+                        log.info("모든 TmdbMovieDetail에 이미 Movie 엔티티가 연결되어 있습니다.");
+                    }
+
+                    // 3. MovieGenreMatch 연관관계 생성
+                    createMovieGenreMatches(validItems, movieDetailMap);
+
+                } else {
+                    log.warn("Movie 생성을 위한 TmdbMovieDetail을 찾을 수 없습니다.");
+                }
+            } catch (Exception e) {
+                log.error("Movie 엔티티 생성 중 오류 발생: {}", e.getMessage(), e);
+                // Movie 생성 실패해도 TmdbMovieDetail 저장은 성공했으므로 예외를 재던지지 않음
+            }
+        };
+    }
+
+    /**
+     * MovieGenreMatch 연관관계를 생성하는 헬퍼 메서드
+     */
+    private void createMovieGenreMatches(List<TmdbMovieDetail> movieDetails, 
+                                       Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetailMap) {
+        try {
+            // 모든 장르 정보 조회
+            List<MovieGenreDao.GenreInfo> allGenres = movieGenreDao.findAllGenres();
+            if (allGenres.isEmpty()) {
+                log.warn("데이터베이스에 장르 정보가 없습니다. MovieGenreMatch를 생성할 수 없습니다.");
+                return;
+            }
+
+            // 장르 ID를 키로 하는 맵 생성
+            Map<Long, MovieGenreDao.GenreInfo> genreIdToGenreMap = allGenres.stream()
+                    .collect(Collectors.toMap(
+                        MovieGenreDao.GenreInfo::getGenreId, 
+                        genre -> genre,
+                        (existing, replacement) -> existing));
+
+            log.info("{}개의 장르 정보 로드 완료", genreIdToGenreMap.size());
+
+            // 처리할 영화들의 tmdb_movie_detail_id 수집
+            List<Long> tmdbMovieDetailIds = movieDetails.stream()
+                    .map(movieDetail -> movieDetailMap.get(movieDetail.getTmdbId()))
+                    .filter(info -> info != null)
+                    .map(TmdbMovieDetailDao.MovieDetailInfo::getId)
+                    .collect(Collectors.toList());
+
+            if (tmdbMovieDetailIds.isEmpty()) {
+                log.warn("처리할 유효한 영화가 없습니다.");
+                return;
+            }
+
+            // 기존 MovieGenreMatch 조회 (중복 방지용)
+            Set<String> existingMatches = getExistingGenreMatches(tmdbMovieDetailIds);
+            log.info("기존 MovieGenreMatch {}개 확인", existingMatches.size());
+
+            int totalMatches = 0;
+            int processedMovies = 0;
+            int skippedDuplicates = 0;
+
+            // 각 영화에 대해 장르 매핑 생성
+            for (TmdbMovieDetail movieDetail : movieDetails) {
+                TmdbMovieDetailDao.MovieDetailInfo movieDetailInfo = movieDetailMap.get(movieDetail.getTmdbId());
+                if (movieDetailInfo == null) {
+                    log.warn("영화 {}에 대한 MovieDetailInfo를 찾을 수 없습니다.", movieDetail.getTitle());
+                    continue;
+                }
+
+                Long tmdbMovieDetailId = movieDetailInfo.getId();
+                List<Integer> movieGenreIds = movieDetail.getGenreIds();
+
+                if (movieGenreIds == null || movieGenreIds.isEmpty()) {
+                    log.debug("영화 {}에 장르 정보가 없습니다.", movieDetail.getTitle());
+                    processedMovies++;
+                    continue;
+                }
+
+                // 영화의 장르 ID에 해당하는 MovieGenre DB ID 목록 생성
+                List<Long> movieGenreDbIds = new ArrayList<>();
+                for (Integer genreId : movieGenreIds) {
+                    MovieGenreDao.GenreInfo genreInfo = genreIdToGenreMap.get(genreId.longValue());
+                    if (genreInfo != null) {
+                        String matchKey = tmdbMovieDetailId + "_" + genreInfo.getId();
+                        if (!existingMatches.contains(matchKey)) {
+                            movieGenreDbIds.add(genreInfo.getId());
+                        } else {
+                            skippedDuplicates++;
+                        }
+                    } else {
+                        log.warn("장르 ID {}가 데이터베이스에 없습니다. 영화: {}", genreId, movieDetail.getTitle());
+                    }
+                }
+
+                if (!movieGenreDbIds.isEmpty()) {
+                    try {
+                        int insertedMatchCount = movieGenreMatchDao.batchInsertGenreMatchesForMovie(tmdbMovieDetailId, movieGenreDbIds);
+                        totalMatches += insertedMatchCount;
+                        log.debug("영화 {}에 대해 {}개의 장르 매핑 생성", movieDetail.getTitle(), insertedMatchCount);
+                    } catch (Exception e) {
+                        log.error("영화 {}의 장르 매핑 생성 중 오류: {}", movieDetail.getTitle(), e.getMessage());
+                    }
+                } else {
+                    log.debug("영화 {}에 새로운 장르 매핑이 없습니다 (모두 기존 존재).", movieDetail.getTitle());
+                }
+
+                processedMovies++;
+            }
+
+            log.info("MovieGenreMatch 생성 완료 - 처리된 영화: {}개, 생성된 매핑: {}개, 스킵된 중복: {}개", 
+                    processedMovies, totalMatches, skippedDuplicates);
+
+        } catch (Exception e) {
+            log.error("MovieGenreMatch 생성 중 오류 발생: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 기존 MovieGenreMatch를 조회하여 중복 방지용 Set을 생성
+     */
+    private Set<String> getExistingGenreMatches(List<Long> tmdbMovieDetailIds) {
+        try {
+            String sql = "SELECT tmdb_movie_detail_id, movie_genre_id FROM movie_genre_match WHERE tmdb_movie_detail_id IN (" +
+                    tmdbMovieDetailIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")";
+            
+            return jdbcTemplate.query(sql, rs -> {
+                Set<String> matches = new HashSet<>();
+                while (rs.next()) {
+                    String matchKey = rs.getLong("tmdb_movie_detail_id") + "_" + rs.getLong("movie_genre_id");
+                    matches.add(matchKey);
+                }
+                return matches;
+            });
+        } catch (Exception e) {
+            log.warn("기존 MovieGenreMatch 조회 중 오류: {}", e.getMessage());
+            return new HashSet<>();
+        }
+    }
+
+    /**
+     * 장르 데이터를 저장하는 Writer (자동 insert/update)
+     */
     public ItemWriter<List<MovieGenre>> tmdbGenreWriter() {
-        return genres -> {
-            if (genres == null || genres.isEmpty()) {
-                log.warn("No genres to process in tmdbGenreWriter");
-                return;
-            }
-
-            List<MovieGenre> genreItems = genres.getItems().get(0);
-            if (genreItems == null || genreItems.isEmpty()) {
-                log.warn("No items in the genres to process in tmdbGenreWriter");
-                return;
-            }
-
-
-            // 장르 ID 목록 추출
-            List<Long> genreIds = genreItems.stream()
-                    .map(MovieGenre::getGenreId)
-                    .collect(Collectors.toList());
-
-            // 기존 장르 조회
-            Map<Long, MovieGenreDao.GenreInfo> existingGenres = movieGenreDao.findExistingGenres(genreIds);
-
-            // 새 장르와 업데이트할 장르 분리
-            List<MovieGenre> newGenres = new ArrayList<>();
-            List<MovieGenre> updateGenres = new ArrayList<>();
-
-            for (MovieGenre genre : genreItems) {
-                if (existingGenres.containsKey(genre.getGenreId())) {
-                    updateGenres.add(genre);
-                } else {
-                    newGenres.add(genre);
+        return chunk -> {
+            List<MovieGenre> validItems = new ArrayList<>();
+            for (List<MovieGenre> batch : chunk.getItems()) {
+                if (batch != null && !batch.isEmpty()) {
+                    validItems.addAll(batch);
                 }
             }
 
-            // 배치 작업 실행
-            if (!newGenres.isEmpty()) {
-                int insertedCount = movieGenreDao.batchInsertGenres(newGenres);
+            if (validItems.isEmpty()) {
+                return;
             }
 
-            if (!updateGenres.isEmpty()) {
-                int updatedCount = movieGenreDao.batchUpdateGenres(updateGenres, existingGenres);
-            }
-
+            // ON DUPLICATE KEY UPDATE를 사용하여 자동으로 insert/update 처리
+            int result = movieGenreDao.batchSaveGenres(validItems);
+            log.info("MovieGenre {}개 저장 완료", result);
         };
     }
 
     /**
-     * OTT 플랫폼 정보를 저장하는 Writer
-     * 
-     * 이 메서드는 OTT 플랫폼 목록을 처리하여 새 OTT 플랫폼은 삽입하고 기존 OTT 플랫폼은 업데이트합니다.
-     * 
-     * @return OTT 플랫폼 데이터를 저장하는 ItemWriter
+     * OTT 플랫폼 데이터를 저장하는 Writer (자동 insert/update)
      */
-    @Transactional
     public ItemWriter<List<OttPlatform>> tmdbOttPlatformWriter() {
-        return ottPlatforms -> {
-
-            if (ottPlatforms == null || ottPlatforms.isEmpty()) {
-                log.warn("No OTT platforms to process in tmdbOttPlatformWriter");
-                return;
-            }
-
-            // ottPlatforms is a Chunk containing a list of items, where each item is a list of OttPlatform objects
-            List<OttPlatform> ottPlatformItems = ottPlatforms.getItems().get(0);
-            if (ottPlatformItems == null || ottPlatformItems.isEmpty()) {
-                log.warn("No items in the OTT platforms to process in tmdbOttPlatformWriter");
-                return;
-            }
-
-            // OTT 플랫폼 ID 목록 추출
-            List<Long> ottPlatformIds = ottPlatformItems.stream()
-                    .map(OttPlatform::getTmdbOttId)
-                    .collect(Collectors.toList());
-
-            // 기존 OTT 플랫폼 조회
-            Map<Long, OttPlatformDao.OttPlatformInfo> existingOttPlatforms = ottPlatformDao.findExistingOttPlatforms(ottPlatformIds);
-
-            // 새 OTT 플랫폼과 업데이트할 OTT 플랫폼 분리
-            List<OttPlatform> newOttPlatforms = new ArrayList<>();
-            List<OttPlatform> updateOttPlatforms = new ArrayList<>();
-
-            for (OttPlatform ottPlatform : ottPlatformItems) {
-                if (existingOttPlatforms.containsKey(ottPlatform.getTmdbOttId())) {
-                    updateOttPlatforms.add(ottPlatform);
-                } else {
-                    newOttPlatforms.add(ottPlatform);
+        return chunk -> {
+            List<OttPlatform> validItems = new ArrayList<>();
+            for (List<OttPlatform> batch : chunk.getItems()) {
+                if (batch != null && !batch.isEmpty()) {
+                    validItems.addAll(batch);
                 }
             }
 
-            // 배치 작업 실행
-            if (!newOttPlatforms.isEmpty()) {
-                int insertedCount = ottPlatformDao.batchInsertOttPlatforms(newOttPlatforms);
+            if (validItems.isEmpty()) {
+                return;
             }
 
-            if (!updateOttPlatforms.isEmpty()) {
-                int updatedCount = ottPlatformDao.batchUpdateOttPlatforms(updateOttPlatforms, existingOttPlatforms);
-            }
-
+            // ON DUPLICATE KEY UPDATE를 사용하여 자동으로 insert/update 처리
+            int result = ottPlatformDao.batchSaveOttPlatforms(validItems);
+            log.info("OttPlatform {}개 저장 완료", result);
         };
     }
 
@@ -253,11 +387,8 @@ public class TmdbBatchWriter {
             });
 
             try {
-                Integer totalCount = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM tmdb_movie_detail_ott",
-                    Integer.class
-                );
-            } catch (Exception e) {
+                        jdbcTemplate.execute("SELECT 1");
+                    } catch (Exception e) {
                 log.error("Error verifying total record count: {}", e.getMessage(), e);
             }
 
@@ -458,13 +589,435 @@ public class TmdbBatchWriter {
     }
 
     /**
+     * 영화 크레딧 정보(배우, 제작진)를 저장하는 Writer
+     * 영화 크레딧 정보를 처리하여 TmdbMember, TmdbMovieCast, TmdbMovieCrew 엔티티를 저장.
+     *
+     * @return 영화 크레딧 정보를 저장하는 ItemWriter
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public ItemWriter<Map<String, Object>> movieCreditsWriter() {
+        return creditsMap -> {
+            if (creditsMap == null || creditsMap.isEmpty()) {
+                log.warn("No movie credits to process");
+                return;
+            }
+
+            Map<String, Object> items = creditsMap.getItems().get(0);
+            if (items == null || items.isEmpty()) {
+                log.warn("No items in the movie credits to process");
+                return;
+            }
+
+            // 새 멤버 저장
+            @SuppressWarnings("unchecked")
+            List<TmdbMember> members = (List<TmdbMember>) items.get("members");
+            
+            if (members != null && !members.isEmpty()) {
+                log.info("Saving {} new members", members.size());
+                int savedMembersCount = tmdbMemberDao.batchSaveMembers(members);
+                log.info("Saved {} new members", savedMembersCount);
+            }
+
+            // 모든 필요한 멤버들의 tmdbId 수집 - 메모리에서
+            List<TmdbMovieCast> casts = (List<TmdbMovieCast>) items.get("casts");
+            List<TmdbMovieCrew> crews = (List<TmdbMovieCrew>) items.get("crews");
+            Map<TmdbMovieCast, Long> castToMemberTmdbIdMap = (Map<TmdbMovieCast, Long>) items.get("castToMemberTmdbIdMap");
+            Map<TmdbMovieCrew, Long> crewToMemberTmdbIdMap = (Map<TmdbMovieCrew, Long>) items.get("crewToMemberTmdbIdMap");
+
+            // 모든 필요한 멤버 tmdbId 수집
+            Set<Long> allNeededTmdbIds = new HashSet<>();
+            if (castToMemberTmdbIdMap != null) {
+                allNeededTmdbIds.addAll(castToMemberTmdbIdMap.values());
+            }
+            if (crewToMemberTmdbIdMap != null) {
+                allNeededTmdbIds.addAll(crewToMemberTmdbIdMap.values());
+            }
+
+            if (allNeededTmdbIds.isEmpty()) {
+                log.warn("No member tmdbIds found for casts and crews");
+                return;
+            }
+
+            // 필요한 모든 멤버를 한 번에 조회
+            log.info("Querying {} members from database", allNeededTmdbIds.size());
+            List<TmdbMember> allRequiredMembers = tmdbMemberRepository.findAllByTmdbIdIn(new ArrayList<>(allNeededTmdbIds));
+            
+            // tmdbId를 키로 하는 맵 생성
+            Map<Long, TmdbMember> tmdbIdToMemberMap = allRequiredMembers.stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            TmdbMember::getTmdbId,
+                            member -> member,
+                            (existing, replacement) -> existing));
+
+            log.info("Found {} members in database", tmdbIdToMemberMap.size());
+
+            // 캐스트 저장
+            if (casts != null && !casts.isEmpty() && castToMemberTmdbIdMap != null) {
+                log.info("Processing {} movie casts", casts.size());
+
+                List<TmdbMovieCast> validCasts = new ArrayList<>();
+                for (TmdbMovieCast cast : casts) {
+                    Long memberTmdbId = castToMemberTmdbIdMap.get(cast);
+                    if (memberTmdbId != null) {
+                        TmdbMember member = tmdbIdToMemberMap.get(memberTmdbId);
+                        if (member != null) {
+                            cast.setTmdbMember(member);
+                            validCasts.add(cast);
+                        } else {
+                            log.warn("Member with TMDB ID {} not found in database for cast", memberTmdbId);
+                        }
+                    } else {
+                        log.warn("No TMDB ID mapping found for cast");
+                    }
+                }
+
+                if (!validCasts.isEmpty()) {
+                    int savedCastsCount = tmdbMovieCastDao.batchInsertMovieCasts(validCasts);
+                    log.info("Saved {} movie casts", savedCastsCount);
+                } else {
+                    log.warn("No valid casts to save");
+                }
+            }
+
+            // 크루 저장
+            if (crews != null && !crews.isEmpty() && crewToMemberTmdbIdMap != null) {
+                log.info("Processing {} movie crews", crews.size());
+
+                List<TmdbMovieCrew> validCrews = new ArrayList<>();
+                for (TmdbMovieCrew crew : crews) {
+                    Long memberTmdbId = crewToMemberTmdbIdMap.get(crew);
+                    if (memberTmdbId != null) {
+                        TmdbMember member = tmdbIdToMemberMap.get(memberTmdbId);
+                        if (member != null) {
+                            crew.setTmdbMember(member);
+                            validCrews.add(crew);
+                        } else {
+                            log.warn("Member with TMDB ID {} not found in database for crew", memberTmdbId);
+                        }
+                    } else {
+                        log.warn("No TMDB ID mapping found for crew");
+                    }
+                }
+
+                if (!validCrews.isEmpty()) {
+                    int savedCrewsCount = tmdbMovieCrewDao.batchInsertMovieCrews(validCrews);
+                    log.info("Saved {} movie crews", savedCrewsCount);
+                } else {
+                    log.warn("No valid crews to save");
+                }
+            }
+
+            log.info("Movie credits processing completed successfully");
+        };
+    }
+
+    /**
+     * 제작사 정보와 런타임 정보를 저장하는 Writer
+     * 
+     * @return 제작사 정보를 저장하는 ItemWriter
+     */
+    @Transactional
+    public ItemWriter<TmdbBatchProcessor.ProductCompanyProcessResult> productCompanyWriter() {
+        return processResults -> {
+            if (processResults == null || processResults.isEmpty()) {
+                log.warn("처리할 제작사 정보가 없습니다.");
+                return;
+            }
+
+            TmdbBatchProcessor.ProductCompanyProcessResult result = processResults.getItems().get(0);
+            if (result == null) {
+                log.warn("제작사 처리 결과가 null입니다.");
+                return;
+            }
+
+            log.info("제작사 정보 저장 시작 - 제작사: {}개, Runtime 업데이트: {}개, 매핑: {}개", 
+                    result.getProductCompanies().size(), 
+                    result.getRuntimeUpdates().size(),
+                    result.getCompanyMovieMappings().size());
+
+            // 1. 제작사 정보 저장 (자동 insert/update)
+            if (!result.getProductCompanies().isEmpty()) {
+                try {
+                    // ON DUPLICATE KEY UPDATE를 사용하여 자동으로 insert/update 처리
+                    int savedCount = productCompanyDao.batchSaveProductCompanies(result.getProductCompanies());
+                    log.info("제작사 {}개 저장 완료", savedCount);
+                } catch (Exception e) {
+                    log.error("제작사 정보 저장 중 오류 발생: {}", e.getMessage(), e);
+                }
+            }
+
+            // 2. Runtime 정보 업데이트
+            if (!result.getRuntimeUpdates().isEmpty()) {
+                try {
+                    int updatedCount = tmdbMovieDetailDao.batchUpdateMovieRuntime(result.getRuntimeUpdates());
+                    log.info("영화 Runtime {}개 업데이트 완료", updatedCount);
+                } catch (Exception e) {
+                    log.error("Runtime 업데이트 중 오류 발생: {}", e.getMessage(), e);
+                }
+            }
+
+            // 3. 영화-제작사 매핑 정보 저장
+            if (!result.getCompanyMovieMappings().isEmpty()) {
+                try {
+                    // 영화 ID를 통해 Movie 엔티티 ID 조회
+                    List<CompanyMovieDao.MovieProductCompanyMapping> movieCompanyMappings = 
+                            createMovieCompanyMappings(result.getCompanyMovieMappings());
+
+                    if (!movieCompanyMappings.isEmpty()) {
+                        int insertedCount = companyMovieDao.batchInsertCompanyMovies(movieCompanyMappings);
+                        log.info("영화-제작사 매핑 {}개 삽입 완료", insertedCount);
+                    }
+                } catch (Exception e) {
+                    log.error("영화-제작사 매핑 저장 중 오류 발생: {}", e.getMessage(), e);
+                }
+            }
+
+            log.info("제작사 정보 저장 완료");
+        };
+    }
+
+    /**
+     * 영화-제작사 매핑 관계만을 저장하는 전용 Writer
+     * 
+     * @return 영화-제작사 매핑을 저장하는 ItemWriter
+     */
+    @Transactional
+    public ItemWriter<TmdbBatchProcessor.CompanyMovieMappingResult> companyMovieMappingWriter() {
+        return mappingResults -> {
+            if (mappingResults == null || mappingResults.isEmpty()) {
+                log.warn("처리할 영화-제작사 매핑 정보가 없습니다.");
+                return;
+            }
+
+            TmdbBatchProcessor.CompanyMovieMappingResult result = mappingResults.getItems().get(0);
+            if (result == null || result.getMappings().isEmpty()) {
+                log.warn("영화-제작사 매핑 데이터가 비어있습니다.");
+                return;
+            }
+
+            log.info("영화-제작사 매핑 저장 시작 - {}개 매핑", result.getMappings().size());
+
+            try {
+                // 중복 제거 - 같은 영화-제작사 조합이 여러 번 나올 수 있음
+                Set<String> seenMappings = new HashSet<>();
+                List<CompanyMovieDao.MovieProductCompanyMapping> uniqueMappings = new ArrayList<>();
+                
+                for (CompanyMovieDao.MovieProductCompanyMapping mapping : result.getMappings()) {
+                    String key = mapping.getMovieId() + "_" + mapping.getProductCompanyId();
+                    if (seenMappings.add(key)) {
+                        uniqueMappings.add(mapping);
+                    }
+                }
+
+                log.info("중복 제거 완료 - 원본: {}개, 고유: {}개", 
+                        result.getMappings().size(), uniqueMappings.size());
+
+                if (!uniqueMappings.isEmpty()) {
+                    int insertedCount = companyMovieDao.batchInsertCompanyMovies(uniqueMappings);
+                    log.info("영화-제작사 매핑 {}개 저장 완료", insertedCount);
+                } else {
+                    log.warn("저장할 고유 매핑이 없습니다.");
+                }
+            } catch (Exception e) {
+                log.error("영화-제작사 매핑 저장 중 오류 발생: {}", e.getMessage(), e);
+                throw e; // 배치 실패로 처리
+            }
+
+            log.info("영화-제작사 매핑 저장 완료");
+        };
+    }
+
+    /**
+     * TMDB 영화 ID와 제작사 ID를 실제 DB의 Movie ID와 ProductCompany ID로 변환
+     */
+    private List<CompanyMovieDao.MovieProductCompanyMapping> createMovieCompanyMappings(
+            List<TmdbBatchProcessor.CompanyMovieMapping> companyMovieMappings) {
+        
+        List<CompanyMovieDao.MovieProductCompanyMapping> result = new ArrayList<>();
+
+        try {
+            // TMDB Movie ID들을 추출
+            Set<Long> tmdbMovieIds = companyMovieMappings.stream()
+                    .map(TmdbBatchProcessor.CompanyMovieMapping::getTmdbMovieId)
+                    .collect(Collectors.toSet());
+
+            // TMDB Company ID들을 추출
+            Set<Long> tmdbCompanyIds = companyMovieMappings.stream()
+                    .map(TmdbBatchProcessor.CompanyMovieMapping::getTmdbCompanyId)
+                    .collect(Collectors.toSet());
+
+            // TmdbMovieDetail을 통해 Movie ID 조회
+            Map<Long, TmdbMovieDetailDao.MovieDetailInfo> movieDetails = 
+                    tmdbMovieDetailDao.findExistingMovieDetails(new ArrayList<>(tmdbMovieIds));
+
+            Map<Long, MovieDao.MovieInfo> movies = new HashMap<>();
+            if (!movieDetails.isEmpty()) {
+                List<Long> tmdbMovieDetailIds = movieDetails.values().stream()
+                        .map(TmdbMovieDetailDao.MovieDetailInfo::getId)
+                        .collect(Collectors.toList());
+                movies = movieDao.findExistingMoviesByTmdbDetailId(tmdbMovieDetailIds);
+            }
+
+            // ProductCompany ID 조회
+            Map<Long, ProductCompanyDao.ProductCompanyInfo> companies = 
+                    productCompanyDao.findExistingProductCompanies(new ArrayList<>(tmdbCompanyIds));
+
+            // 매핑 생성
+            for (TmdbBatchProcessor.CompanyMovieMapping mapping : companyMovieMappings) {
+                TmdbMovieDetailDao.MovieDetailInfo movieDetailInfo = movieDetails.get(mapping.getTmdbMovieId());
+                ProductCompanyDao.ProductCompanyInfo companyInfo = companies.get(mapping.getTmdbCompanyId());
+
+                if (movieDetailInfo != null && companyInfo != null) {
+                    MovieDao.MovieInfo movieInfo = movies.get(movieDetailInfo.getId());
+                    if (movieInfo != null) {
+                        result.add(new CompanyMovieDao.MovieProductCompanyMapping(
+                                movieInfo.getId(),
+                                companyInfo.getId()
+                        ));
+                    }
+                }
+            }
+
+            log.info("영화-제작사 매핑 변환 완료 - 입력: {}개, 출력: {}개", 
+                    companyMovieMappings.size(), result.size());
+
+        } catch (Exception e) {
+            log.error("영화-제작사 매핑 변환 중 오류 발생: {}", e.getMessage(), e);
+        }
+
+        return result;
+    }
+
+    /**
+     * KOFIC-TMDB 매핑 데이터를 저장하는 Writer
+     */
+    public ItemWriter<List<KoficTmdbProcessedData>> koficTmdbMappingWriter() {
+        return chunk -> {
+            List<KoficTmdbProcessedData> validItems = new ArrayList<>();
+            for (List<KoficTmdbProcessedData> batch : chunk.getItems()) {
+                if (batch != null && !batch.isEmpty()) {
+                    validItems.addAll(batch);
+                }
+            }
+
+            if (validItems.isEmpty()) {
+                return;
+            }
+
+            try {
+                saveKoficTmdbMappingData(validItems);
+                log.info("KOFIC-TMDB 매핑 데이터 {}개 저장 완료", validItems.size());
+            } catch (Exception e) {
+                log.error("KOFIC-TMDB 매핑 데이터 저장 중 오류 발생: {}", e.getMessage(), e);
+                throw e;
+            }
+        };
+    }
+
+    /**
+     * KOFIC-TMDB 매핑 데이터를 저장합니다.
+     */
+    @Transactional
+    private void saveKoficTmdbMappingData(List<KoficTmdbProcessedData> mappingDataList) {
+        List<TmdbMovieDetail> newTmdbMovies = new ArrayList<>();
+        List<KoficTmdbMappingUpdate> mappingUpdates = new ArrayList<>();
+
+        // 데이터 분류
+        for (KoficTmdbProcessedData data : mappingDataList) {
+            if (data.isExistingTmdbMovie()) {
+                // 기존 TMDB 영화와 매핑만 업데이트
+                mappingUpdates.add(new KoficTmdbMappingUpdate(
+                    data.getKoficMovie().getId(),
+                    data.getTmdbMovie().getId()
+                ));
+            } else {
+                // 새로운 TMDB 영화 저장 필요
+                newTmdbMovies.add(data.getTmdbMovie());
+                mappingUpdates.add(new KoficTmdbMappingUpdate(
+                    data.getKoficMovie().getId(),
+                    null // 저장 후 ID가 설정됨
+                ));
+            }
+        }
+
+        // 1. 새로운 TMDB 영화들 저장
+        if (!newTmdbMovies.isEmpty()) {
+            int insertedCount = tmdbMovieDetailDao.batchSaveItems(newTmdbMovies);
+            log.info("새로운 TMDB 영화 {}개 저장 완료", newTmdbMovies.size());
+
+            // 저장된 TMDB 영화들의 ID 업데이트
+            for (int i = 0; i < newTmdbMovies.size(); i++) {
+                TmdbMovieDetail savedMovie = newTmdbMovies.get(i);
+                // 저장된 영화의 실제 ID를 가져오기 위해 조회
+                Optional<TmdbMovieDetail> foundMovie = tmdbMovieDetailRepository.findByTmdbId(savedMovie.getTmdbId());
+                if (foundMovie.isPresent()) {
+                    mappingUpdates.get(i + mappingUpdates.size() - newTmdbMovies.size()).setTmdbMovieDetailId(foundMovie.get().getId());
+                }
+            }
+        }
+
+        // 2. KOFIC 영화들의 TMDB 매핑 업데이트
+        updateKoficTmdbMappings(mappingUpdates);
+        log.info("KOFIC-TMDB 매핑 {}개 업데이트 완료", mappingUpdates.size());
+    }
+
+    /**
+     * KOFIC 영화들의 TMDB 매핑을 업데이트합니다.
+     */
+    private void updateKoficTmdbMappings(List<KoficTmdbMappingUpdate> mappingUpdates) {
+        String sql = "UPDATE kofic_movie_detail SET tmdb_movie_detail_id = ?, updated_at = ? WHERE id = ?";
+        LocalDateTime now = LocalDateTime.now();
+
+        List<Object[]> batchParams = new ArrayList<>();
+        for (KoficTmdbMappingUpdate update : mappingUpdates) {
+            if (update.getTmdbMovieDetailId() != null) {
+                batchParams.add(new Object[]{
+                    update.getTmdbMovieDetailId(),
+                    now,
+                    update.getKoficMovieDetailId()
+                });
+            }
+        }
+
+        if (!batchParams.isEmpty()) {
+            jdbcTemplate.batchUpdate(sql, batchParams);
+        }
+    }
+
+    /**
+     * KOFIC-TMDB 매핑 업데이트 정보를 담는 내부 클래스
+     */
+    private static class KoficTmdbMappingUpdate {
+        private final Long koficMovieDetailId;
+        private Long tmdbMovieDetailId;
+
+        public KoficTmdbMappingUpdate(Long koficMovieDetailId, Long tmdbMovieDetailId) {
+            this.koficMovieDetailId = koficMovieDetailId;
+            this.tmdbMovieDetailId = tmdbMovieDetailId;
+        }
+
+        public Long getKoficMovieDetailId() {
+            return koficMovieDetailId;
+        }
+
+        public Long getTmdbMovieDetailId() {
+            return tmdbMovieDetailId;
+        }
+
+        public void setTmdbMovieDetailId(Long tmdbMovieDetailId) {
+            this.tmdbMovieDetailId = tmdbMovieDetailId;
+        }
+    }
+
+    /**
      * 단일 청크 처리
      * 1. 기존 데이터 조회
      * 2. 새 데이터와 업데이트 데이터 분리
      * 3. 배치 작업으로 처리
      * 4. Movie 엔티티 생성 및 연결
-     * 5. MovieGenreMatch 엔티티 생성 및 연결
-     * 6. TmdbMovieDetailOtt 엔티티 생성 및 연결
+     * 
+     * 주의: 이 메서드는 현재 사용되지 않습니다. 
+     * MovieGenreMatch는 tmdbMovieDetailAndMovieWriter에서 처리됩니다.
      */
     private void processChunk(List<TmdbMovieDetail> chunk) {
         // 1. TMDb ID 목록 추출
@@ -490,7 +1043,7 @@ public class TmdbBatchWriter {
         // 4. 배치 작업 실행
         List<Long> insertedTmdbMovieDetailIds = new ArrayList<>();
         if (!newItems.isEmpty()) {
-            int insertedCount = tmdbMovieDetailDao.batchInsertItems(newItems);
+            int insertedCount = tmdbMovieDetailDao.batchSaveItems(newItems);
 
             // 새로 삽입된 항목의 ID 조회
             Map<Long, TmdbMovieDetailDao.MovieDetailInfo> newItemsInfo = tmdbMovieDetailDao.findExistingMovieDetails(
@@ -527,7 +1080,7 @@ public class TmdbBatchWriter {
                     .collect(Collectors.toList());
 
             if (!newMovieTmdbDetailIds.isEmpty()) {
-                int insertedMovieCount = movieDao.batchInsertMovies(newMovieTmdbDetailIds);
+                int insertedMovieCount = movieDao.batchSaveMovies(newMovieTmdbDetailIds);
             }
 
             // 기존 Movie 엔티티 업데이트
@@ -535,69 +1088,9 @@ public class TmdbBatchWriter {
                 int updatedMovieCount = movieDao.batchUpdateMovies(existingMovies);
             }
 
-            // 6. MovieGenreMatch 엔티티 생성 및 연결
-            // 모든 장르 조회 (MovieGenreDao.findAllGenres에서 중복 처리됨)
-            List<MovieGenreDao.GenreInfo> allGenres = movieGenreDao.findAllGenres();
-
-            // 장르 ID를 키로 하는 맵 생성
-            Map<Long, MovieGenreDao.GenreInfo> genreIdToGenreMap = allGenres.stream()
-                    .collect(Collectors.toMap(
-                        MovieGenreDao.GenreInfo::getGenreId, 
-                        genre -> genre,
-                        (existing, replacement) -> existing)); // 중복 시 기존 항목 유지
-
-
-            // 7. 모든 OTT 플랫폼 조회
-            List<OttPlatformDao.OttPlatformInfo> allOttPlatforms = ottPlatformDao.findAllOttPlatforms();
-
-            // OTT 플랫폼 ID를 키로 하는 맵 생성
-            Map<Long, OttPlatformDao.OttPlatformInfo> ottIdToOttPlatformMap = allOttPlatforms.stream()
-                    .collect(Collectors.toMap(
-                        OttPlatformDao.OttPlatformInfo::getTmdbOttId, 
-                        ottPlatform -> ottPlatform,
-                        (existing, replacement) -> existing)); // 중복 시 기존 항목 유지
-
-
-            // 각 영화에 대해 장르 매핑 및 OTT 플랫폼 매핑 생성
-            for (TmdbMovieDetail movieDetail : chunk) {
-                // 영화 상세 정보 ID 가져오기
-                Long tmdbMovieDetailId;
-                if (existingDetails.containsKey(movieDetail.getTmdbId())) {
-                    tmdbMovieDetailId = existingDetails.get(movieDetail.getTmdbId()).getId();
-                } else {
-                    // 새로 삽입된 항목의 ID 조회
-                    Map<Long, TmdbMovieDetailDao.MovieDetailInfo> newItemInfo = tmdbMovieDetailDao.findExistingMovieDetails(
-                            List.of(movieDetail.getTmdbId())
-                    );
-                    if (newItemInfo.isEmpty()) {
-                        log.warn("Could not find movie detail ID for movie: {}", movieDetail.getTitle());
-                        continue;
-                    }
-                    tmdbMovieDetailId = newItemInfo.get(movieDetail.getTmdbId()).getId();
-                }
-
-                // 영화의 장르 ID 목록 가져오기
-                List<Integer> movieGenreIds = movieDetail.getGenreIds();
-                if (movieGenreIds != null && !movieGenreIds.isEmpty()) {
-                    // 영화의 장르 ID에 해당하는 MovieGenre ID 목록 생성
-                    List<Long> movieGenreDbIds = new ArrayList<>();
-                    for (Integer genreId : movieGenreIds) {
-                        MovieGenreDao.GenreInfo genreInfo = genreIdToGenreMap.get(genreId.longValue());
-                        if (genreInfo != null) {
-                            movieGenreDbIds.add(genreInfo.getId());
-                        } else {
-                            log.warn("Genre ID {} not found in database for movie: {}", genreId, movieDetail.getTitle());
-                        }
-                    }
-
-                    if (!movieGenreDbIds.isEmpty()) {
-                        int insertedMatchCount = movieGenreMatchDao.batchInsertGenreMatchesForMovie(tmdbMovieDetailId, movieGenreDbIds);
-                    }
-                } else {
-                    log.warn("No genre IDs found for movie: {}", movieDetail.getTitle());
-                }
-
-            }
+            // MovieGenreMatch 생성은 tmdbMovieDetailAndMovieWriter에서 처리됨
+            // 중복 생성 방지를 위해 여기서는 제거
+            log.debug("Movie 엔티티 처리 완료. MovieGenreMatch는 메인 Writer에서 처리됩니다.");
         }
     }
 }

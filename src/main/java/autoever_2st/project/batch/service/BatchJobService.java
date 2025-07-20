@@ -10,5 +10,10 @@ public interface BatchJobService {
     public void runKoficJobs();
 
     public void runTmdbMovieJob();
+    
+    /**
+     * KOFIC-TMDB 매핑 작업을 실행합니다.
+     */
+    public void runKoficTmdbMappingJob();
 
 }

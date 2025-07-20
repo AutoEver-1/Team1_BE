@@ -49,22 +49,22 @@ public class TmdbMovieDetailDao {
     }
 
     /**
-     * 새 영화 상세 정보를 배치로 삽입.
+     * 영화 상세 정보를 배치로 저장합니다.
+     * tmdb_id UNIQUE 제약조건과 ON DUPLICATE KEY UPDATE를 사용하여 
+     * 중복 시 자동으로 업데이트됩니다.
      * 
-     * @param items 삽입할 항목 목록
-     * @return 삽입된 항목 수
+     * @param items 저장할 항목 목록
+     * @return 처리된 항목 수
      */
     @org.springframework.transaction.annotation.Transactional
-    public int batchInsertItems(List<TmdbMovieDetail> items) {
-        LocalDateTime now = LocalDateTime.now();
-
-        int beforeCount = getTotalCount();
-
-        try {
-            jdbcTemplate.execute("SELECT 1");
-        } catch (Exception e) {
-            log.warn("삽입 전 플러시를 강제로 실행하지 못함: {}", e.getMessage());
+    public int batchSaveItems(List<TmdbMovieDetail> items) {
+        if (items.isEmpty()) {
+            return 0;
         }
+
+        LocalDateTime now = LocalDateTime.now();
+        
+        log.info("영화 상세 정보 배치 저장/업데이트 시작 - {}개 항목", items.size());
 
         int result = JdbcUtils.executeBatchUpdate(
                 jdbcTemplate,
@@ -97,41 +97,10 @@ public class TmdbMovieDetailDao {
                         return items.size();
                     }
                 },
-                "insert"
+                "save"
         );
 
-        try {
-            jdbcTemplate.execute((java.sql.Connection conn) -> {
-                if (!conn.getAutoCommit()) {
-                    conn.commit();
-                }
-                return null;
-            });
-
-            jdbcTemplate.execute("SELECT 1");
-        } catch (Exception e) {
-            log.warn("삽입 후 커밋/플러시를 강제로 실행하지 못함: {}", e.getMessage());
-        }
-
-        if (result > 0) {
-            try {
-                List<Long> sampleTmdbIds = items.stream()
-                        .limit(Math.min(5, items.size()))
-                        .map(TmdbMovieDetail::getTmdbId)
-                        .collect(java.util.stream.Collectors.toList());
-
-                Map<Long, MovieDetailInfo> verificationMap = findExistingMovieDetails(sampleTmdbIds);
-
-                int afterCount = getTotalCount();
-
-                if (afterCount <= beforeCount) {
-                    log.warn("삽입 후 카운트가 증가하지 않음. 트랜잭션 문제일 가능성");
-                }
-            } catch (Exception e) {
-                log.error("삽입 후 검증 중 오류 발생: {}", e.getMessage(), e);
-            }
-        }
-
+        log.info("영화 상세 정보 배치 저장/업데이트 완료 - {}개 처리됨", result);
         return result;
     }
 
@@ -203,18 +172,55 @@ public class TmdbMovieDetailDao {
             try {
                 int afterCount = getTotalCount();
 
-                List<Long> sampleTmdbIds = items.stream()
-                        .limit(Math.min(5, items.size()))
-                        .map(TmdbMovieDetail::getTmdbId)
-                        .collect(java.util.stream.Collectors.toList());
-
-                Map<Long, MovieDetailInfo> verificationMap = findExistingMovieDetails(sampleTmdbIds);
-
+                if (afterCount != beforeCount) {
+                    log.warn("업데이트 후 카운트가 변경됨. 이전: {}, 이후: {}", beforeCount, afterCount);
+                }
             } catch (Exception e) {
-                log.error("업데이트 후 검증 중 오류 발생: {}\n", e.getMessage(), e);
+                log.error("업데이트 후 검증 중 오류 발생: {}", e.getMessage(), e);
             }
         }
 
+        return result;
+    }
+
+    /**
+     * 영화의 runtime 정보를 배치로 업데이트.
+     * 
+     * @param movieRuntimeUpdates 업데이트할 영화 runtime 정보 목록
+     * @return 업데이트된 항목 수
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int batchUpdateMovieRuntime(List<MovieRuntimeUpdate> movieRuntimeUpdates) {
+        if (movieRuntimeUpdates.isEmpty()) {
+            log.warn("업데이트할 runtime 정보가 비어있습니다.");
+            return 0;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        log.info("영화 runtime 배치 업데이트 시작 - {}개 항목", movieRuntimeUpdates.size());
+
+        int result = JdbcUtils.executeBatchUpdate(
+                jdbcTemplate,
+                SqlConstants.UPDATE_MOVIE_DETAIL_RUNTIME,
+                movieRuntimeUpdates,
+                new BatchPreparedStatementSetter() {
+                    @Override
+                    public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        MovieRuntimeUpdate update = movieRuntimeUpdates.get(i);
+                        ps.setObject(1, update.getRuntime());
+                        ps.setObject(2, now);
+                        ps.setLong(3, update.getTmdbId());
+                    }
+
+                    @Override
+                    public int getBatchSize() {
+                        return movieRuntimeUpdates.size();
+                    }
+                },
+                "update"
+        );
+
+        log.info("영화 runtime 배치 업데이트 완료 - {}개 처리됨", result);
         return result;
     }
 
@@ -283,6 +289,27 @@ public class TmdbMovieDetailDao {
 
         public LocalDateTime getUpdatedAt() {
             return updatedAt;
+        }
+    }
+
+    /**
+     * 영화 runtime 업데이트 정보를 담는 내부 클래스
+     */
+    public static class MovieRuntimeUpdate {
+        private final Long tmdbId;
+        private final Integer runtime;
+
+        public MovieRuntimeUpdate(Long tmdbId, Integer runtime) {
+            this.tmdbId = tmdbId;
+            this.runtime = runtime;
+        }
+
+        public Long getTmdbId() {
+            return tmdbId;
+        }
+
+        public Integer getRuntime() {
+            return runtime;
         }
     }
 }

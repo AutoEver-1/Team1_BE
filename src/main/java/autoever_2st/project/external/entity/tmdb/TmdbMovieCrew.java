@@ -3,10 +3,12 @@ package autoever_2st.project.external.entity.tmdb;
 import autoever_2st.project.common.entity.TimeStamp;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "tmdb_movie_crew")
 @Getter
+@NoArgsConstructor
 public class TmdbMovieCrew extends TimeStamp {
 
     @Id
@@ -26,7 +28,7 @@ public class TmdbMovieCrew extends TimeStamp {
     @JoinColumn(name = "tmdb_movie_detail_id")
     private TmdbMovieDetail tmdbMovieDetail;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.MERGE})
     @JoinColumn(name = "tmdb_member_id")
     private TmdbMember tmdbMember;
 

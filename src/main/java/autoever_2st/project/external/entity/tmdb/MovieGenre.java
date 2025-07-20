@@ -9,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "movie_genre")
+@Table(name = "movie_genre",
+       uniqueConstraints = @UniqueConstraint(columnNames = "genre_id"))
 @Getter
 @NoArgsConstructor
 public class MovieGenre extends TimeStamp {
@@ -18,7 +19,7 @@ public class MovieGenre extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "genre_id")
+    @Column(name = "genre_id", unique = true)
     private Long genreId;
 
     @Column(name = "name")

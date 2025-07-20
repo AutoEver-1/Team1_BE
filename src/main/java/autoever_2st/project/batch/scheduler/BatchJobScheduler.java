@@ -33,6 +33,9 @@ public class BatchJobScheduler {
     @Qualifier("koficBoxOfficeJob")
     private final Job koficBoxOfficeJob;
     
+    @Qualifier("koficTmdbMappingJob")
+    private final Job koficTmdbMappingJob;
+    
     /**
      * TMDB 영화 데이터를 매일 새벽 1시에 가져옴.
      */
@@ -70,6 +73,7 @@ public class BatchJobScheduler {
     public void runAllJobs() {
         runTmdbMovieJob();
         runKoficBoxOfficeJob();
+        runKoficTmdbMappingJob();
     }
 
     public void runTmdbJobs() {
@@ -78,5 +82,24 @@ public class BatchJobScheduler {
 
     public void runKoficJobs() {
         runKoficBoxOfficeJob();
+    }
+    
+    /**
+     * KOFIC-TMDB 매핑 작업을 실행합니다.
+     * KOFIC 영화를 TMDB API로 검색하여 매핑하고 필요한 경우 TMDB 데이터를 수집합니다.
+     */
+    public void runKoficTmdbMappingJob() {
+        JobParameters jobParameters = new JobParametersBuilder()
+                .addString("time", LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME))
+                .toJobParameters();
+        
+        try {
+            log.info("KOFIC-TMDB 매핑 작업 시작");
+            jobLauncher.run(koficTmdbMappingJob, jobParameters);
+            log.info("KOFIC-TMDB 매핑 작업 완료");
+        } catch (JobExecutionAlreadyRunningException | JobRestartException |
+                JobInstanceAlreadyCompleteException | JobParametersInvalidException e) {
+            log.error("KOFIC-TMDB 매핑 작업 중 오류 발생: {}", e.getMessage(), e);
+        }
     }
 }

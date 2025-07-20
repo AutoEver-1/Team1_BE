@@ -85,15 +85,21 @@ public class MovieGenreDao {
     }
 
     /**
-     * 새 장르 정보를 배치로 삽입.
+     * 장르 정보를 배치로 저장합니다.
+     * ON DUPLICATE KEY UPDATE를 사용하여 중복 시 자동으로 업데이트됩니다.
      * 
-     * @param genres 삽입할 장르 목록
-     * @return 삽입된 항목 수
+     * @param genres 저장할 장르 목록
+     * @return 처리된 항목 수
      */
-    public int batchInsertGenres(List<MovieGenre> genres) {
-        LocalDateTime now = LocalDateTime.now();
+    public int batchSaveGenres(List<MovieGenre> genres) {
+        if (genres.isEmpty()) {
+            return 0;
+        }
 
-        return JdbcUtils.executeBatchUpdate(
+        LocalDateTime now = LocalDateTime.now();
+        log.info("장르 배치 저장 시작 - {}개 항목", genres.size());
+
+        int result = JdbcUtils.executeBatchUpdate(
                 jdbcTemplate,
                 SqlConstants.INSERT_GENRE,
                 genres,
@@ -112,60 +118,11 @@ public class MovieGenreDao {
                         return genres.size();
                     }
                 },
-                "insert"
+                "save"
         );
-    }
 
-    /**
-     * 기존 장르 정보를 배치로 업데이트.
-     * 
-     * @param genres 업데이트할 장르 목록
-     * @param existingGenres 기존 장르 맵
-     * @return 업데이트된 항목 수
-     */
-    public int batchUpdateGenres(List<MovieGenre> genres, Map<Long, GenreInfo> existingGenres) {
-        LocalDateTime now = LocalDateTime.now();
-
-        // 업데이트가 필요한 장르만 필터링
-        List<MovieGenre> genresToUpdate = genres.stream()
-                .filter(genre -> {
-                    GenreInfo existingGenre = existingGenres.get(genre.getGenreId());
-                    return existingGenre != null && !existingGenre.getName().equals(genre.getName());
-                })
-                .collect(Collectors.toList());
-
-        if (genresToUpdate.isEmpty()) {
-            log.info("장르 업데이트 되지 않음");
-            return 0;
-        }
-
-        return JdbcUtils.executeBatchUpdate(
-                jdbcTemplate,
-                SqlConstants.UPDATE_GENRE,
-                genresToUpdate,
-                new BatchPreparedStatementSetter() {
-                    @Override
-                    public void setValues(PreparedStatement ps, int i) throws SQLException {
-                        MovieGenre genre = genresToUpdate.get(i);
-                        GenreInfo existingGenre = existingGenres.get(genre.getGenreId());
-
-                        if (existingGenre == null) {
-                            log.error("장르 ID에 대한 기존 장르를 찾을 수 없음: {}", genre.getGenreId());
-                            throw new DataNotFoundException("장르 ID에 대한 기존 장르를 찾을 수 없음: {}" + genre.getGenreId(), HttpStatus.INTERNAL_SERVER_ERROR);
-                        }
-
-                        ps.setString(1, genre.getName());
-                        ps.setObject(2, now);
-                        ps.setLong(3, existingGenre.getId());
-                    }
-
-                    @Override
-                    public int getBatchSize() {
-                        return genresToUpdate.size();
-                    }
-                },
-                "update"
-        );
+        log.info("장르 배치 저장 완료 - {}개 처리됨", result);
+        return result;
     }
 
     /**

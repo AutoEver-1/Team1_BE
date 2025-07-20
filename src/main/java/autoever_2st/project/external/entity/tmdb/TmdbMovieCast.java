@@ -3,21 +3,23 @@ package autoever_2st.project.external.entity.tmdb;
 import autoever_2st.project.common.entity.TimeStamp;
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "tmdb_movie_cast")
 @Getter
+@NoArgsConstructor
 public class TmdbMovieCast extends TimeStamp {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "character")
-    private String character;
+    @Column(name = "cast_character" , columnDefinition = "TEXT")
+    private String castCharacter;
 
-    @Column(name = "order")
-    private Long order;
+    @Column(name = "cast_order")
+    private Long castOrder;
 
     @Column(name = "tmdb_cast_id")
     private Long tmdbCastId;
@@ -29,13 +31,13 @@ public class TmdbMovieCast extends TimeStamp {
     @JoinColumn(name = "tmdb_movie_detail_id")
     private TmdbMovieDetail tmdbMovieDetail;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.MERGE})
     @JoinColumn(name = "tmdb_member_id")
     private TmdbMember tmdbMember;
 
-    public TmdbMovieCast(String character, Long order, Long tmdbCastId, String knownForDepartment) {
-        this.character = character;
-        this.order = order;
+    public TmdbMovieCast(String castCharacter, Long castOrder, Long tmdbCastId, String knownForDepartment) {
+        this.castCharacter = castCharacter;
+        this.castOrder = castOrder;
         this.tmdbCastId = tmdbCastId;
         this.knownForDepartment = knownForDepartment;
     }
