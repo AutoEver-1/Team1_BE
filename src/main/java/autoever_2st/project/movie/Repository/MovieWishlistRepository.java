@@ -17,7 +17,6 @@ public interface MovieWishlistRepository extends JpaRepository<MovieWishlist, Lo
     @Query("SELECT mw.movie.id FROM MovieWishlist mw WHERE mw.member.id = :memberId")
     List<Long> findMovieIdsByMemberId(@Param("memberId") Long memberId);
 
-
     //이미 찜한 영화인지 중복 여부를 체크
     boolean existsByMemberIdAndMovieId(Long memberId, Long movieId);
 

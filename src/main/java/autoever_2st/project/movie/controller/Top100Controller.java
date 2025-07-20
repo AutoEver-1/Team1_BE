@@ -61,7 +61,7 @@ public class Top100Controller {
                     (long) i,
                     "Famous Director " + i,
                     "Original Director Name " + i,
-                    9.0 + (i * 0.1),
+                    //9.0 + (i * 0.1),
                     "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
             

@@ -10,15 +10,15 @@ public class DirectorDto {
     private Long personId;
     private String name;
     private String originalName;
-    private Double popularity;
+    //private Double popularity;
     private String profilePath;
 
-    public DirectorDto(String gender, Long personId, String name, String originalName, Double popularity, String profilePath) {
+    public DirectorDto(String gender, Long personId, String name, String originalName, String profilePath) {
         this.gender = gender;
         this.personId = personId;
         this.name = name;
         this.originalName = originalName;
-        this.popularity = popularity;
+        //this.popularity = popularity;
         this.profilePath = profilePath;
     }
 }
