@@ -1,7 +1,7 @@
 package autoever_2st.project.movie.service.impl;
 
 
-import autoever_2st.project.movie.Repository.MovieWishlistRepository;
+import autoever_2st.project.movie.repository.MovieWishlistRepository;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.movie.entity.MovieWishlist;
 import autoever_2st.project.movie.repository.MovieRepository;

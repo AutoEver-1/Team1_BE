@@ -1,4 +1,4 @@
-package autoever_2st.project.movie.Repository;
+package autoever_2st.project.movie.repository;
 
 import autoever_2st.project.movie.entity.MovieWishlist;
 import org.springframework.data.jpa.repository.JpaRepository;
