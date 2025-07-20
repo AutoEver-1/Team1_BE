@@ -46,15 +46,19 @@ public class MovieDao {
     }
     
     /**
-     * 새 영화 정보를 배치로 삽입.
+     * 새 영화 정보를 배치로 저장합니다.
+     * tmdb_movie_detail_id UNIQUE 제약조건과 ON DUPLICATE KEY UPDATE를 사용하여
+     * 중복 시 자동으로 업데이트됩니다.
      * 
-     * @param tmdbMovieDetailIds 삽입할 TmdbMovieDetail ID 목록
-     * @return 삽입된 항목 수
+     * @param tmdbMovieDetailIds 저장할 TmdbMovieDetail ID 목록
+     * @return 처리된 항목 수
      */
-    public int batchInsertMovies(List<Long> tmdbMovieDetailIds) {
+    public int batchSaveMovies(List<Long> tmdbMovieDetailIds) {
         LocalDateTime now = LocalDateTime.now();
         
-        return JdbcUtils.executeBatchUpdate(
+        log.info("Movie 엔티티 배치 저장/업데이트 시작 - {}개 항목", tmdbMovieDetailIds.size());
+        
+        int result = JdbcUtils.executeBatchUpdate(
                 jdbcTemplate,
                 SqlConstants.INSERT_MOVIE,
                 tmdbMovieDetailIds,
@@ -72,8 +76,11 @@ public class MovieDao {
                         return tmdbMovieDetailIds.size();
                     }
                 },
-                "insert"
+                "save"
         );
+        
+        log.info("Movie 엔티티 배치 저장/업데이트 완료 - {}개 처리됨", result);
+        return result;
     }
     
     /**
