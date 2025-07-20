@@ -2,8 +2,8 @@ package autoever_2st.project.review.Service;
 
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
+import autoever_2st.project.movie.repository.MovieRepository;
 import org.springframework.transaction.annotation.Transactional;
-import autoever_2st.project.movie.Repository.MovieRepository;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.review.Entity.Review;
 import autoever_2st.project.review.Entity.ReviewDetail;
