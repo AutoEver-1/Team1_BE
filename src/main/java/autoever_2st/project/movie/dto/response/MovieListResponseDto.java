@@ -1,17 +1,16 @@
 package autoever_2st.project.movie.dto.response;
 
-import autoever_2st.project.movie.dto.MovieDto;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 
 @NoArgsConstructor
 @Getter
-public class MovieListResponseDto {
-    private List<MovieDto> movieList;
+public class MovieListResponseDto<T> {
 
-    public MovieListResponseDto(List<MovieDto> movieList) {
+    private T movieList;
+
+    public MovieListResponseDto(T movieList) {
         this.movieList = movieList;
     }
 }
