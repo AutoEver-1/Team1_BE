@@ -10,7 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "tmdb_member")
+@Table(name = "tmdb_member",
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_id"))
 @Getter
 @NoArgsConstructor
 public class TmdbMember extends TimeStamp {

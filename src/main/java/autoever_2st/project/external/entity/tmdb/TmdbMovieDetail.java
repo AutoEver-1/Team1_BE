@@ -12,7 +12,8 @@ import java.util.Date;
 import java.util.List;
 
 @Entity
-@Table(name = "tmdb_movie_detail")
+@Table(name = "tmdb_movie_detail", 
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_id"))
 @Getter
 @NoArgsConstructor
 public class TmdbMovieDetail extends TimeStamp {
