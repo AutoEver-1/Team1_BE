@@ -5,8 +5,8 @@ import autoever_2st.project.movie.entity.Movie;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -69,21 +69,26 @@ public class TmdbMovieDetail extends TimeStamp {
     @OneToOne(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private Movie movie;
 
+    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new ArrayList<>();
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieImages> tmdbMovieImages = new ArrayList<>();
 
+    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieVideo> tmdbMovieVideo = new ArrayList<>();
 
+    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MovieGenreMatch> movieGenreMatch = new ArrayList<>();
 
+    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieCast> tmdbMovieCast = new ArrayList<>();
 
+    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieCrew> tmdbMovieCrew = new ArrayList<>();
 
