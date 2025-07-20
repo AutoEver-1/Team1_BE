@@ -196,7 +196,7 @@ public class MovieController {
                     (long) i,
                     "Director Name " + i,
                     "Original Director Name " + i,
-                    8.5 + (i * 0.1),
+                    //8.5 + (i * 0.1),
                     "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
 
