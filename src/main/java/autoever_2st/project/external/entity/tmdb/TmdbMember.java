@@ -10,7 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "tmdb_member")
+@Table(name = "tmdb_member",
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_id"))
 @Getter
 @NoArgsConstructor
 public class TmdbMember extends TimeStamp {
@@ -22,7 +23,7 @@ public class TmdbMember extends TimeStamp {
     @Column(name = "is_adult")
     private Boolean isAdult;
 
-    @Column(name = "tmdb_id")
+    @Column(name = "tmdb_id", unique = true)
     private Long tmdbId;
 
     @Column(name = "original_name")
@@ -34,16 +35,17 @@ public class TmdbMember extends TimeStamp {
     @Column(name = "media_type")
     private String mediaType;
 
+    @Enumerated(EnumType.ORDINAL)
     @Column(name = "gender")
     private Gender gender;
 
     @Column(name = "profile_path")
     private String profilePath;
 
-    @OneToMany(mappedBy = "tmdbMember", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "tmdbMember", orphanRemoval = true)
     private List<TmdbMovieCrew> tmdbMovieCrew = new ArrayList<>();
 
-    @OneToMany(mappedBy = "tmdbMember", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "tmdbMember", orphanRemoval = true)
     private List<TmdbMovieCast> tmdbMovieCast = new ArrayList<>();
 
     public TmdbMember(Boolean isAdult, Long tmdbId, String originalName, String name, String mediaType, Gender gender, String profilePath) {

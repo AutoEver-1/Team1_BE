@@ -35,4 +35,14 @@ public class BatchJobController {
     public void runKoficBatchJob() {
         batchJobService.runKoficJobs();
     }
+    
+    @GetMapping("/koficTmdbMappingJob")
+    public String runKoficTmdbMappingJob() {
+        try {
+            batchJobService.runKoficTmdbMappingJob();
+            return "KOFIC-TMDB 매핑 작업이 성공적으로 시작되었습니다.";
+        } catch (Exception e) {
+            return "KOFIC-TMDB 매핑 작업 실행 중 오류 발생: " + e.getMessage();
+        }
+    }
 }

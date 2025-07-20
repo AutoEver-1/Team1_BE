@@ -6,7 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "movie_genre_match")
+@Table(name = "movie_genre_match",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"tmdb_movie_detail_id", "movie_genre_id"}))
 @Getter
 @NoArgsConstructor
 public class MovieGenreMatch extends TimeStamp {

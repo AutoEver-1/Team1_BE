@@ -7,7 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "company_movie")
+@Table(name = "company_movie",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"movie_id", "product_company_id"}))
 @Getter
 @NoArgsConstructor
 public class CompanyMovie extends TimeStamp {

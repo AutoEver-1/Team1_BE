@@ -9,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "product_company")
+@Table(name = "product_company",
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_company_id"))
 @Getter
 @NoArgsConstructor
 public class ProductCompany extends TimeStamp {
@@ -18,7 +19,7 @@ public class ProductCompany extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tmdb_company_id")
+    @Column(name = "tmdb_company_id", unique = true)
     private Long tmdbCompanyId;
 
     @Column(name = "name")
@@ -30,8 +31,11 @@ public class ProductCompany extends TimeStamp {
     @Column(name = "origin_country")
     private String originCountry;
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
-    private CompanyImage companyImage;
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "logo_path")
+    private String logoPath;
 
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompanyMovie> companyMovieList = new ArrayList<>();
@@ -40,22 +44,18 @@ public class ProductCompany extends TimeStamp {
     private List<AlternativeCompanyName> alternativeCompanyNameList = new ArrayList<>();
 
 
-    public ProductCompany(Long tmdbCompanyId, String name, String homePage, String originCountry) {
+    public ProductCompany(Long tmdbCompanyId, String name, String homePage, String originCountry, String description, String logoPath) {
         this.tmdbCompanyId = tmdbCompanyId;
         this.name = name;
         this.homePage = homePage;
         this.originCountry = originCountry;
+        this.description = description;
+        this.logoPath = logoPath;
     }
 
     public ProductCompany addCompanyMovie(CompanyMovie companyMovie){
         this.companyMovieList.add(companyMovie);
         companyMovieList.add(companyMovie);
-        return this;
-    }
-
-    public ProductCompany setCompanyImage(CompanyImage companyImage){
-        this.companyImage = companyImage;
-        companyImage.setProductCompany(this);
         return this;
     }
 

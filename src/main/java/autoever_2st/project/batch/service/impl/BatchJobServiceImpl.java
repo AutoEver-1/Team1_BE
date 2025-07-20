@@ -32,4 +32,9 @@ public class BatchJobServiceImpl implements BatchJobService {
     public void runTmdbMovieJob() {
         batchJobScheduler.runTmdbMovieJob();
     }
+    
+    @Override
+    public void runKoficTmdbMappingJob() {
+        batchJobScheduler.runKoficTmdbMappingJob();
+    }
 }

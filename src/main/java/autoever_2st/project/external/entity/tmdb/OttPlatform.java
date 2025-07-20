@@ -9,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ott_platform")
+@Table(name = "ott_platform",
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_ott_id"))
 @Getter
 @NoArgsConstructor
 public class OttPlatform extends TimeStamp {
@@ -18,7 +19,7 @@ public class OttPlatform extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tmdb_ott_id")
+    @Column(name = "tmdb_ott_id", unique = true)
     private Long tmdbOttId;
 
     @Column(name = "name")
