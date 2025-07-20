@@ -2,6 +2,8 @@ package autoever_2st.project.review.Service;
 
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
+import autoever_2st.project.movie.Repository.CineverScoreRepository;
+import autoever_2st.project.movie.entity.CineverScore;
 import autoever_2st.project.movie.repository.MovieRepository;
 import org.springframework.transaction.annotation.Transactional;
 import autoever_2st.project.movie.entity.Movie;
@@ -33,6 +35,7 @@ public class ReviewService {
     private final UserRepository userRepository;
     private final MovieRepository movieRepository;
     private final MemberGenrePreferenceRepository memberGenrePreferenceRepository;
+    private final CineverScoreRepository cineverScoreRepository;
 
 
     @Transactional
@@ -42,6 +45,12 @@ public class ReviewService {
 
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 영화입니다."));
+
+        // ✅ 리뷰 중복 작성 방지
+        boolean exists = reviewRepository.existsByMemberAndMovie(member, movie);
+        if (exists) {
+            throw new IllegalStateException("이미 해당 영화에 대한 리뷰를 작성하셨습니다.");
+        }
 
         // 1. Review 저장
         Review review = new Review();
@@ -57,6 +66,24 @@ public class ReviewService {
         detail.setCreatedAt(Date.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant()));
         detail.setBanned(false);
         reviewDetailRepository.save(detail);
+
+
+        // 3. CineverScore 갱신 또는 새로 생성
+        CineverScore cineverScore = cineverScoreRepository.findByMovie(movie)
+                .orElseGet(() -> {
+                    CineverScore newScore = new CineverScore();
+                    newScore.setMovie(movie);
+                    newScore.setScore(0.0);
+                    newScore.setReviewCount(0);
+                    return newScore;
+                });
+
+        // score 누적 및 카운트 증가
+        double rating = reviewRequestDto.getRating();
+        cineverScore.setScore(cineverScore.getScore() + rating);
+        cineverScore.setReviewCount(cineverScore.getReviewCount() + 1);
+
+        cineverScoreRepository.save(cineverScore); // 새로 만든 경우든 기존이든 save()
 
         return review.getId(); // 저장된 리뷰 ID 반환
     }
@@ -75,11 +102,29 @@ public class ReviewService {
         ReviewDetail detail = reviewDetailRepository.findByReview(review)
                 .orElseThrow(() -> new IllegalArgumentException("리뷰 디테일이 없습니다."));
 
-        detail.setRating(reviewRequestDto.getRating());
+        // 기존 평점 저장
+        double oldRating = detail.getRating();
+        double newRating = reviewRequestDto.getRating();
+
+        // 리뷰 내용 및 평점 업데이트
+        //detail.setRating(reviewRequestDto.getRating());
+        detail.setRating(newRating);
         detail.setContent(reviewRequestDto.getContext());
 
         // 수정일자 필요 시 추가
         detail.setCreatedAt(Date.from(LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant())); // 기존 createdAt을 수정시각으로 덮어쓰기
+
+        // CineverScore 갱신
+        CineverScore cineverScore = cineverScoreRepository.findByMovie(movie)
+                .orElseThrow(() -> new IllegalStateException("CineverScore가 존재하지 않습니다."));
+
+        // 기존 점수 빼고, 새 점수 더하기
+        cineverScore.setScore(cineverScore.getScore() - oldRating + newRating);
+
+        cineverScoreRepository.save(cineverScore);
+
+
+
     }
 
     @Transactional
@@ -88,6 +133,27 @@ public class ReviewService {
                 .orElseThrow(() -> new IllegalArgumentException("리뷰가 존재하지 않습니다."));
 
         reviewRepository.delete(review); // Cascade로 reviewDetail도 함께 삭제됨
+        ReviewDetail detail = review.getReviewDetail();  // 삭제 전 rating 확인
+        double rating = detail.getRating();
+        Movie movie = review.getMovie();
+
+
+        // CineverScore 업데이트
+        CineverScore score = cineverScoreRepository.findByMovie(movie)
+                .orElseThrow(() -> new IllegalStateException("CineverScore가 존재하지 않습니다."));
+
+        // score와 count 감소
+        score.setScore(score.getScore() - rating);
+        score.setReviewCount(score.getReviewCount() - 1);
+
+        // score가 0이 되었을 경우 삭제하고 싶다면 이 부분 추가 (선택)
+        // if (score.getReviewCount() <= 0) {
+        //     cineverScoreRepository.delete(score);
+        // } else {
+        cineverScoreRepository.save(score);
+        // }
+
+        reviewRepository.delete(review); // Cascade로 reviewDetail도 삭제됨
     }
 
     public List<ReviewDto> getReviewsByMovieId(Long movieId,  Long loginMemberId) {
