@@ -20,4 +20,22 @@ public interface TmdbMovieImageRepository extends JpaRepository<TmdbMovieImages,
 
     Optional<TmdbMovieImages> findFirstByTmdbMovieDetail_IdAndImageTypeOrderByIdAsc(Long tmdbId, ImageType imageType);
 
+
+    @Query("""
+    SELECT mi FROM TmdbMovieImages mi
+    WHERE mi.tmdbMovieDetail.id = :tmdbId
+      AND mi.imageType = :imageType
+    ORDER BY
+      CASE 
+        WHEN mi.iso6391 = 'ko' THEN 1
+        WHEN mi.iso6391 = 'en' THEN 2
+        WHEN mi.iso6391 IS NULL THEN 3
+        ELSE 4
+      END,
+      mi.id ASC
+    """)
+    Optional<TmdbMovieImages> findPreferredPosterByTmdbId(
+            @Param("tmdbId") Long tmdbId,
+            @Param("imageType") ImageType imageType
+    );
 }

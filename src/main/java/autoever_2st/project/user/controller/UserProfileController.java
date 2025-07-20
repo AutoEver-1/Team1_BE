@@ -72,24 +72,24 @@ public class UserProfileController {
     // 위시리스트 조회
     @GetMapping("/{memberId}/wishlist")
     public ApiResponse<MovieListResponseDto> getWishlist(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        //PageRequest pageable = PageRequest.of(page, size);
+        MovieListResponseDto responseDto = movieService.getWishlist(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
     // 최애 영화 조회
     @GetMapping("/{memberId}/favorite-movie")
     public ApiResponse<MovieListResponseDto> getFavoriteMovies(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+//        List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = movieService.getFavoriteMovies(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
     // 비선호 영화 조회
     @GetMapping("/{memberId}/dislike-movie")
     public ApiResponse<MovieListResponseDto> getDislikedMovies(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        //List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = movieService.getDislikedMovies(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 

@@ -47,4 +47,21 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     @Query("SELECT r.id FROM Review r WHERE r.member.id = :memberId")
     List<Long> findReviewIdsByMemberId(@Param("memberId") Long memberId);
+
+
+    @Query("""
+    SELECT DISTINCT r.movie.id 
+    FROM Review r
+    JOIN ReviewDetail rd ON rd.review.id = r.id
+    WHERE r.member.id = :memberId AND rd.rating > 2.5
+""")
+    List<Long> findFavoriteMovieIdsByMemberId(@Param("memberId") Long memberId);
+
+    @Query("""
+    SELECT DISTINCT r.movie.id 
+    FROM Review r
+    JOIN ReviewDetail rd ON rd.review.id = r.id
+    WHERE r.member.id = :memberId AND rd.rating < 2.5
+""")
+    List<Long> findDislikeMovieIdsByMemberId(@Param("memberId") Long memberId);
 }
