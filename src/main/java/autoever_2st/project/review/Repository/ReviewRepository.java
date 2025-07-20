@@ -64,4 +64,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     WHERE r.member.id = :memberId AND rd.rating < 2.5
 """)
     List<Long> findDislikeMovieIdsByMemberId(@Param("memberId") Long memberId);
+
+
+    boolean existsByMemberAndMovie(Member member, Movie movie);
+
 }
