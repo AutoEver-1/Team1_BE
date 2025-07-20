@@ -2,7 +2,7 @@ package autoever_2st.project.review.Service;
 
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
-import autoever_2st.project.movie.Repository.CineverScoreRepository;
+import autoever_2st.project.movie.repository.CineverScoreRepository;
 import autoever_2st.project.movie.entity.CineverScore;
 import autoever_2st.project.movie.repository.MovieRepository;
 import org.springframework.transaction.annotation.Transactional;

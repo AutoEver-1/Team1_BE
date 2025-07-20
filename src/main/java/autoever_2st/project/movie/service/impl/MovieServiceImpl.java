@@ -13,7 +13,9 @@ import autoever_2st.project.movie.dto.MovieDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
 import autoever_2st.project.movie.entity.CineverScore;
 import autoever_2st.project.movie.entity.Movie;
+import autoever_2st.project.movie.repository.CineverScoreRepository;
 import autoever_2st.project.movie.repository.MovieRepository;
+import autoever_2st.project.movie.repository.MovieWishlistRepository;
 import autoever_2st.project.movie.service.MovieService;
 import autoever_2st.project.review.Repository.ReviewDetailRepository;
 import autoever_2st.project.review.Repository.ReviewRepository;
@@ -45,11 +47,11 @@ public class MovieServiceImpl implements MovieService {
     private final ReviewDetailRepository reviewDetailRepository;
     private final MovieRepository movieRepository;
     private final MovieGenreMatchRepository movieGenreMatchRepository;
-    private final autoever_2st.project.movie.Repository.CineverScoreRepository cineverScoreRepository;
+    private final CineverScoreRepository cineverScoreRepository;
     private final TmdbMovieImageRepository tmdbmovieImageRepository;
     private final TmdbMovieCrewRepository tmdbMovieCrewRepository;
 
-    private final autoever_2st.project.movie.Repository.MovieWishlistRepository movieWishlistRepository;
+    private final MovieWishlistRepository movieWishlistRepository;
 
 
     String baseUrl = "https://image.tmdb.org/t/p/original/";

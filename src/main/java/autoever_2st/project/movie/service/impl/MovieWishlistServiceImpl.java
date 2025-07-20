@@ -5,7 +5,7 @@ import autoever_2st.project.movie.repository.MovieWishlistRepository;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.movie.entity.MovieWishlist;
 import autoever_2st.project.movie.repository.MovieRepository;
-import autoever_2st.project.movie.service.MovieWishListService;
+import autoever_2st.project.movie.service.MovieWishlistService;
 import autoever_2st.project.user.Entity.Member;
 import autoever_2st.project.user.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class MovieWishlistServiceImpl implements MovieWishListService {
+public class MovieWishlistServiceImpl implements MovieWishlistService {
     private final MovieRepository movieRepository;
     private final MovieWishlistRepository movieWishlistRepository;
     private final UserRepository userRepository;
