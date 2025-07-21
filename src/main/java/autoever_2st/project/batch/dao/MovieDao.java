@@ -2,6 +2,7 @@ package autoever_2st.project.batch.dao;
 
 import autoever_2st.project.jdbc.constants.SqlConstants;
 import autoever_2st.project.jdbc.util.JdbcUtils;
+import autoever_2st.project.movie.entity.Movie;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
@@ -26,6 +27,43 @@ public class MovieDao {
 
     private final JdbcTemplate jdbcTemplate;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    
+    /**
+     * Movie 엔티티들을 배치로 저장합니다.
+     * 
+     * @param movies 저장할 Movie 엔티티 목록
+     * @return 처리된 항목 수
+     */
+    public int batchSaveItems(List<Movie> movies) {
+        LocalDateTime now = LocalDateTime.now();
+        
+        log.info("Movie 엔티티 배치 저장 시작 - {}개 항목", movies.size());
+        
+        int result = JdbcUtils.executeBatchUpdate(
+                jdbcTemplate,
+                SqlConstants.INSERT_MOVIE_WITH_KOFIC,
+                movies,
+                new BatchPreparedStatementSetter() {
+                    @Override
+                    public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        Movie movie = movies.get(i);
+                        ps.setLong(1, movie.getTmdbMovieDetail().getId());
+                        ps.setLong(2, movie.getKoficMovieDetail().getId());
+                        ps.setObject(3, now);
+                        ps.setObject(4, now);
+                    }
+
+                    @Override
+                    public int getBatchSize() {
+                        return movies.size();
+                    }
+                },
+                "save"
+        );
+        
+        log.info("Movie 엔티티 배치 저장 완료 - {}개 처리됨", result);
+        return result;
+    }
     
     /**
      * TmdbMovieDetail ID로 기존 영화 정보를 조회.
@@ -67,8 +105,9 @@ public class MovieDao {
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
                         Long tmdbMovieDetailId = tmdbMovieDetailIds.get(i);
                         ps.setLong(1, tmdbMovieDetailId);
-                        ps.setObject(2, now);
+                        ps.setNull(2, java.sql.Types.BIGINT); // kofic_movie_detail_id는 null
                         ps.setObject(3, now);
+                        ps.setObject(4, now);
                     }
 
                     @Override

@@ -4,8 +4,9 @@ import autoever_2st.project.external.entity.tmdb.MovieGenre;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.repository.tmdb.MovieGenreMatchRepository;
 import autoever_2st.project.external.repository.tmdb.TmdbMovieImageRepository;
-import autoever_2st.project.movie.repository.MovieWishlistRepository;
+
 import autoever_2st.project.movie.entity.Movie;
+import autoever_2st.project.movie.repository.MovieWishlistRepository;
 import autoever_2st.project.user.Entity.Follow.MemberFollowing;
 import autoever_2st.project.user.Entity.Member;
 import autoever_2st.project.user.Repository.MemberGenrePreferenceRepository;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import autoever_2st.project.external.entity.tmdb.ImageType;
 
 @RequiredArgsConstructor
 @Service
@@ -98,7 +100,7 @@ public class UserProfileService {
                             .filter(Objects::nonNull)
                             .toList();
 
-                    String imageUrl = tmdbMovieImageRepository.findFirstByTmdbMovieDetailId(tmdbDetail.getId())
+                    String imageUrl = tmdbMovieImageRepository.findFirstByTmdbMovieDetail_IdAndImageTypeOrderByIdAsc(tmdbDetail.getId(), ImageType.POSTER)
                             .map(img -> img.getBaseUrl() + img.getImageUrl())
                             .orElse(null);
 

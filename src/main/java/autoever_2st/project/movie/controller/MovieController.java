@@ -1,11 +1,10 @@
 package autoever_2st.project.movie.controller;
 
 import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.external.dto.tmdb.response.movie.GenreDto;
 import autoever_2st.project.movie.dto.*;
 import autoever_2st.project.movie.dto.response.BoxOfficeResponseDto;
-import autoever_2st.project.movie.dto.response.ExpectedReleaseMovieListDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
-import autoever_2st.project.movie.dto.response.RecentlyReleaseMovieListDto;
 import autoever_2st.project.movie.service.impl.MovieWishlistServiceImpl;
 import autoever_2st.project.movie.service.MovieService;
 import autoever_2st.project.user.Service.CustomUserDetails;
@@ -21,7 +20,14 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Movie", description = "영화 관련 API")
 @RestController
 @RequestMapping("/movie")
 @RequiredArgsConstructor
@@ -74,23 +80,50 @@ public class MovieController {
         return ApiResponse.success(famousQuoteDto, HttpStatus.OK.value());
     }
 
-    // OTT별 작품 조회
+    // OTT별 작품 조회 - deprecated
     @GetMapping("/ott/{ottId}")
     public ApiResponse<MovieListResponseDto> getMoviesByOtt(@PathVariable Long ottId) {
+//        movieService.g
+
         return ApiResponse.success(new MovieListResponseDto(Page.empty()), HttpStatus.OK.value());
     }
 
     // 개봉예정작 받기
     @GetMapping("/ott/{ottId}/expect/release")
-    public ApiResponse<ExpectedReleaseMovieListDto> getExpectedReleaseMovies(@PathVariable Long ottId) {
-        return ApiResponse.success(new ExpectedReleaseMovieListDto(new ArrayList<>()), HttpStatus.OK.value());
+    public ApiResponse<OttMovieListResponseDto> getExpectedReleaseMoviesByOtt(@PathVariable Long ottId) {
+        OttMovieListResponseDto ottMovieListResponseDto = movieService.getExpectedOttMovieList();
+
+        return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
     }
 
     // 최근 개봉작 받기
     @GetMapping("/ott/{ottId}/recently/release")
-    public ApiResponse<RecentlyReleaseMovieListDto> getRecentlyReleaseMovies(@PathVariable Long ottId) {
-        return ApiResponse.success(new RecentlyReleaseMovieListDto(new ArrayList<>()), HttpStatus.OK.value());
+    public ApiResponse<OttMovieListResponseDto> getRecentlyReleaseMoviesByOtt(@PathVariable Long ottId) {
+        OttMovieListResponseDto ottMovieListResponseDto = movieService.getRecentlyOttMovieList();
+
+        return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
     }
+
+//    // 모든 OTT 플랫폼의 개봉예정작 및 최근 개봉작 받기
+//    @GetMapping("/ott/movies")
+//    public ApiResponse<OttMovieListResponseDto> getOttMovies() {
+//        OttMovieListResponseDto ottMovieListResponseDto = movieService.getOttMovieList();
+//        return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
+//    }
+//
+//    // 모든 OTT 플랫폼의 개봉예정작 받기
+//    @GetMapping("/ott/movies/expect")
+//    public ApiResponse<OttMovieListResponseDto> getExpectedOttMovies() {
+//        OttMovieListResponseDto ottMovieListResponseDto = movieService.getExpectedOttMovieList();
+//        return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
+//    }
+//
+//    // 모든 OTT 플랫폼의 최근 개봉작 받기
+//    @GetMapping("/ott/movies/recently")
+//    public ApiResponse<OttMovieListResponseDto> getRecentlyOttMovies() {
+//        OttMovieListResponseDto ottMovieListResponseDto = movieService.getRecentlyOttMovieList();
+//        return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
+//    }
 
     // 박스오피스 순위 조회
     @GetMapping("/boxoffice")
@@ -103,27 +136,66 @@ public class MovieController {
 
     // 최신 영화 조회
     @GetMapping("/latest")
-    public ApiResponse<MovieListResponseDto> getLatestMovies() {
-        return ApiResponse.success(new MovieListResponseDto(Page.empty()), HttpStatus.OK.value());
+    public ApiResponse<Page<MovieDto>> getLatestMovies(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(movieService.getLatestMovies(pageable), HttpStatus.OK.value());
     }
 
     // 실시간 인기 영화 조회
     @GetMapping("/popular")
-    public ApiResponse<MovieListResponseDto> getPopularMovies() {
-        return ApiResponse.success(new MovieListResponseDto(Page.empty()), HttpStatus.OK.value());
+    public ApiResponse<Page<MovieDto>> getPopularMovies(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(movieService.getPopularMovies(pageable), HttpStatus.OK.value());
     }
 
     // 역대 최고 평점 조회
     @GetMapping("/top-rated")
-    public ApiResponse<MovieListResponseDto> getTopRatedMovies() {
-        return ApiResponse.success(new MovieListResponseDto(Page.empty()), HttpStatus.OK.value());
+    public ApiResponse<Page<MovieDto>> getTopRatedMovies(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ApiResponse.success(movieService.getTopRatedMovies(pageable), HttpStatus.OK.value());
     }
 
-    // 영화 정보 조회
+    /**
+     * 영화 상세 정보 조회 API
+     * @param movieId 영화 ID
+     * @param userDetails 로그인한 사용자 정보 (선택적)
+     * @return 영화 상세 정보
+     */
+    @Operation(summary = "영화 상세 정보 조회", description = "영화의 상세 정보를 조회합니다.")
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200",
+            description = "영화 상세 정보 조회 성공",
+            content = @Content(schema = @Schema(implementation = MovieDetailDto.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "400",
+            description = "잘못된 요청",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "404",
+            description = "영화를 찾을 수 없음",
+            content = @Content(schema = @Schema(implementation = ApiResponse.class))
+        )
+    })
     @GetMapping("/{movieId}")
-    public ApiResponse<MovieDetailDto> getMovieDetail(@PathVariable Long movieId) {
-
-        return ApiResponse.success(new MovieDetailDto(), HttpStatus.OK.value());
+    public ApiResponse<MovieDetailDto> getMovieDetail(
+            @Parameter(description = "영화 ID", required = true)
+            @PathVariable Long movieId,
+            @Parameter(description = "로그인한 사용자 정보")
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        Long memberId = userDetails != null ? userDetails.getMember().getId() : null;
+        MovieDetailDto movieDetail = movieService.getMovieDetail(movieId, memberId);
+        
+        return ApiResponse.success(movieDetail, HttpStatus.OK.value());
     }
 
     //위치리스트 추가 삭제
@@ -141,6 +213,16 @@ public class MovieController {
                                         @AuthenticationPrincipal CustomUserDetails userDetails) {
         Long memberId = userDetails.getMember().getId();
         movieWishlistServiceImpl.removeMovieFromWishlist(memberId, movieId);
+    }
+
+    @GetMapping("/genres")
+    public ApiResponse<List<GenreDto>> getGenreList() {
+        return ApiResponse.success(movieService.getGenreList(), HttpStatus.OK.value());
+    }
+
+    @GetMapping("/top100")
+    public ApiResponse<MovieListResponseDto> getHundredMoviesByGenre(@RequestParam Long genreId) {
+        return ApiResponse.success(movieService.getHundredMoviesByGenre(genreId), HttpStatus.OK.value());
     }
 
 

@@ -2,12 +2,20 @@ package autoever_2st.project.batch.writer;
 
 import autoever_2st.project.batch.dao.*;
 import autoever_2st.project.batch.dto.KoficTmdbProcessedData;
+import autoever_2st.project.batch.dto.MovieImagesDto;
+import autoever_2st.project.batch.dto.MovieVideosDto;
+import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
 import autoever_2st.project.batch.processor.TmdbBatchProcessor;
+import autoever_2st.project.external.dto.tmdb.response.movie.*;
+import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
+import autoever_2st.project.external.entity.kofic.KoficMovieDetail;
 import autoever_2st.project.external.entity.tmdb.*;
-import autoever_2st.project.external.repository.tmdb.TmdbMovieDetailRepository;
-import autoever_2st.project.external.repository.tmdb.TmdbMemberRepository;
+import autoever_2st.project.external.enums.Gender;
+import autoever_2st.project.external.repository.tmdb.*;
+import autoever_2st.project.movie.entity.Movie;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -19,6 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -262,7 +271,7 @@ public class TmdbBatchWriter {
         try {
             String sql = "SELECT tmdb_movie_detail_id, movie_genre_id FROM movie_genre_match WHERE tmdb_movie_detail_id IN (" +
                     tmdbMovieDetailIds.stream().map(String::valueOf).collect(Collectors.joining(",")) + ")";
-            
+
             return jdbcTemplate.query(sql, rs -> {
                 Set<String> matches = new HashSet<>();
                 while (rs.next()) {
@@ -611,7 +620,7 @@ public class TmdbBatchWriter {
             // 새 멤버 저장
             @SuppressWarnings("unchecked")
             List<TmdbMember> members = (List<TmdbMember>) items.get("members");
-            
+
             if (members != null && !members.isEmpty()) {
                 log.info("Saving {} new members", members.size());
                 int savedMembersCount = tmdbMemberDao.batchSaveMembers(members);
@@ -641,7 +650,7 @@ public class TmdbBatchWriter {
             // 필요한 모든 멤버를 한 번에 조회
             log.info("Querying {} members from database", allNeededTmdbIds.size());
             List<TmdbMember> allRequiredMembers = tmdbMemberRepository.findAllByTmdbIdIn(new ArrayList<>(allNeededTmdbIds));
-            
+
             // tmdbId를 키로 하는 맵 생성
             Map<Long, TmdbMember> tmdbIdToMemberMap = allRequiredMembers.stream()
                     .collect(java.util.stream.Collectors.toMap(
@@ -801,7 +810,7 @@ public class TmdbBatchWriter {
                 // 중복 제거 - 같은 영화-제작사 조합이 여러 번 나올 수 있음
                 Set<String> seenMappings = new HashSet<>();
                 List<CompanyMovieDao.MovieProductCompanyMapping> uniqueMappings = new ArrayList<>();
-                
+
                 for (CompanyMovieDao.MovieProductCompanyMapping mapping : result.getMappings()) {
                     String key = mapping.getMovieId() + "_" + mapping.getProductCompanyId();
                     if (seenMappings.add(key)) {
@@ -832,7 +841,7 @@ public class TmdbBatchWriter {
      */
     private List<CompanyMovieDao.MovieProductCompanyMapping> createMovieCompanyMappings(
             List<TmdbBatchProcessor.CompanyMovieMapping> companyMovieMappings) {
-        
+
         List<CompanyMovieDao.MovieProductCompanyMapping> result = new ArrayList<>();
 
         try {
@@ -918,45 +927,144 @@ public class TmdbBatchWriter {
      * KOFIC-TMDB 매핑 데이터를 저장합니다.
      */
     @Transactional
-    private void saveKoficTmdbMappingData(List<KoficTmdbProcessedData> mappingDataList) {
+    protected void saveKoficTmdbMappingData(List<KoficTmdbProcessedData> mappingDataList) {
         List<TmdbMovieDetail> newTmdbMovies = new ArrayList<>();
+        List<KoficMovieDetail> koficMoviesForNewTmdb = new ArrayList<>();
         List<KoficTmdbMappingUpdate> mappingUpdates = new ArrayList<>();
+        List<Movie> allNewMovies = new ArrayList<>(); // 모든 새로운 Movie 엔티티
 
-        // 데이터 분류
+        // 데이터 분류 및 매핑 정보 추적을 위한 맵 생성
+        Map<Long, Integer> tmdbIdToMappingIndex = new HashMap<>();
+        int mappingIndex = 0;
+
+        // 중복 TMDB ID 체크
+        Set<Long> uniqueTmdbIds = new HashSet<>();
+        Set<Long> duplicateTmdbIds = new HashSet<>();
+
         for (KoficTmdbProcessedData data : mappingDataList) {
             if (data.isExistingTmdbMovie()) {
-                // 기존 TMDB 영화와 매핑만 업데이트
+                // 기존 TMDB 영화와 매핑 - Movie 엔티티 생성 필요
+                TmdbMovieDetail existingTmdbMovie = data.getTmdbMovie();
+                KoficMovieDetail koficMovie = data.getKoficMovie();
+                
+                // 기존 TmdbMovieDetail에 Movie가 이미 있는지 확인
+                Optional<TmdbMovieDetail> tmdbWithMovie = tmdbMovieDetailRepository.findById(existingTmdbMovie.getId());
+                if (tmdbWithMovie.isPresent() && tmdbWithMovie.get().getMovie() == null) {
+                    // Movie 엔티티가 없는 경우에만 생성
+                    Movie movie = new Movie()
+                            .setTmdbMovieDetail(existingTmdbMovie)
+                            .setKoficMovieDetail(koficMovie);
+                    allNewMovies.add(movie);
+                }
+                
                 mappingUpdates.add(new KoficTmdbMappingUpdate(
-                    data.getKoficMovie().getId(),
-                    data.getTmdbMovie().getId()
+                    koficMovie.getId(),
+                    existingTmdbMovie.getId()
                 ));
             } else {
                 // 새로운 TMDB 영화 저장 필요
-                newTmdbMovies.add(data.getTmdbMovie());
+                TmdbMovieDetail newMovie = data.getTmdbMovie();
+
+                // 중복 TMDB ID 체크
+                Long tmdbId = newMovie.getTmdbId();
+                if (!uniqueTmdbIds.add(tmdbId)) {
+                    duplicateTmdbIds.add(tmdbId);
+                    log.warn("중복된 TMDB ID 발견: {} (영화: {})", tmdbId, newMovie.getTitle());
+                }
+
+                newTmdbMovies.add(newMovie);
+                koficMoviesForNewTmdb.add(data.getKoficMovie());
+
+                // 매핑 인덱스 저장 (TMDB ID -> 매핑 인덱스)
+                tmdbIdToMappingIndex.put(newMovie.getTmdbId(), mappingIndex);
+
                 mappingUpdates.add(new KoficTmdbMappingUpdate(
                     data.getKoficMovie().getId(),
                     null // 저장 후 ID가 설정됨
                 ));
             }
+            mappingIndex++;
+        }
+
+        if (!duplicateTmdbIds.isEmpty()) {
+            log.warn("중복된 TMDB ID {}개 발견: {}", duplicateTmdbIds.size(), duplicateTmdbIds);
         }
 
         // 1. 새로운 TMDB 영화들 저장
         if (!newTmdbMovies.isEmpty()) {
             int insertedCount = tmdbMovieDetailDao.batchSaveItems(newTmdbMovies);
-            log.info("새로운 TMDB 영화 {}개 저장 완료", newTmdbMovies.size());
+            log.info("새로운 TMDB 영화 {}개 저장 시도, {}개 처리됨", newTmdbMovies.size(), insertedCount);
 
-            // 저장된 TMDB 영화들의 ID 업데이트
+            // 저장 전 DB에 이미 존재하는 TMDB ID 확인
+            List<Long> tmdbIds = newTmdbMovies.stream()
+                    .map(TmdbMovieDetail::getTmdbId)
+                    .collect(Collectors.toList());
+
+            Map<Long, TmdbMovieDetailDao.MovieDetailInfo> existingMovies = 
+                    tmdbMovieDetailDao.findExistingMovieDetails(tmdbIds);
+
+            log.info("저장 전 DB에 이미 존재하는 TMDB 영화: {}개", existingMovies.size());
+
+            // 저장된 TMDB 영화들의 ID 업데이트 및 Movie 엔티티 생성
+            int foundCount = 0;
+            int notFoundCount = 0;
+
             for (int i = 0; i < newTmdbMovies.size(); i++) {
                 TmdbMovieDetail savedMovie = newTmdbMovies.get(i);
+                KoficMovieDetail koficMovie = koficMoviesForNewTmdb.get(i);
+                Long tmdbId = savedMovie.getTmdbId();
+
+                // 먼저 이미 존재하는 영화인지 확인
+                TmdbMovieDetailDao.MovieDetailInfo existingMovie = existingMovies.get(tmdbId);
+                if (existingMovie != null) {
+                    // 이미 존재하는 영화라면 해당 ID 사용
+                    Integer index = tmdbIdToMappingIndex.get(tmdbId);
+                    if (index != null && index < mappingUpdates.size()) {
+                        mappingUpdates.get(index).setTmdbMovieDetailId(existingMovie.getId());
+                        foundCount++;
+                        
+                        // Movie 엔티티 생성 (기존 TmdbMovieDetail 사용)
+                        Movie movie = new Movie()
+                                .setTmdbMovieDetail(tmdbMovieDetailRepository.findById(existingMovie.getId()).orElse(null))
+                                .setKoficMovieDetail(koficMovie);
+                        allNewMovies.add(movie);
+                    }
+                    continue;
+                }
+
                 // 저장된 영화의 실제 ID를 가져오기 위해 조회
-                Optional<TmdbMovieDetail> foundMovie = tmdbMovieDetailRepository.findByTmdbId(savedMovie.getTmdbId());
+                Optional<TmdbMovieDetail> foundMovie = tmdbMovieDetailRepository.findByTmdbId(tmdbId);
                 if (foundMovie.isPresent()) {
-                    mappingUpdates.get(i + mappingUpdates.size() - newTmdbMovies.size()).setTmdbMovieDetailId(foundMovie.get().getId());
+                    // 매핑 인덱스를 사용하여 정확한 매핑 업데이트
+                    Integer index = tmdbIdToMappingIndex.get(tmdbId);
+                    if (index != null && index < mappingUpdates.size()) {
+                        mappingUpdates.get(index).setTmdbMovieDetailId(foundMovie.get().getId());
+                        foundCount++;
+                        
+                        // Movie 엔티티 생성
+                        Movie movie = new Movie()
+                                .setTmdbMovieDetail(foundMovie.get())
+                                .setKoficMovieDetail(koficMovie);
+                        allNewMovies.add(movie);
+                    } else {
+                        log.warn("TMDB ID {}에 대한 매핑 인덱스를 찾을 수 없음", tmdbId);
+                    }
+                } else {
+                    log.warn("저장된 TMDB 영화 ID {}를 찾을 수 없음 (영화: {})", tmdbId, savedMovie.getTitle());
+                    notFoundCount++;
                 }
             }
+
+            log.info("TMDB 영화 ID 조회 결과: 찾음 {}개, 못찾음 {}개", foundCount, notFoundCount);
+        }
+        
+        // 2. 모든 Movie 엔티티들 저장
+        if (!allNewMovies.isEmpty()) {
+            int movieInsertedCount = movieDao.batchSaveItems(allNewMovies);
+            log.info("새로운 Movie 엔티티 {}개 저장 시도, {}개 처리됨", allNewMovies.size(), movieInsertedCount);
         }
 
-        // 2. KOFIC 영화들의 TMDB 매핑 업데이트
+        // 3. KOFIC 영화들의 TMDB 매핑 업데이트
         updateKoficTmdbMappings(mappingUpdates);
         log.info("KOFIC-TMDB 매핑 {}개 업데이트 완료", mappingUpdates.size());
     }
@@ -965,23 +1073,52 @@ public class TmdbBatchWriter {
      * KOFIC 영화들의 TMDB 매핑을 업데이트합니다.
      */
     private void updateKoficTmdbMappings(List<KoficTmdbMappingUpdate> mappingUpdates) {
-        String sql = "UPDATE kofic_movie_detail SET tmdb_movie_detail_id = ?, updated_at = ? WHERE id = ?";
+        String sqlWithTmdb = "UPDATE kofic_movie_detail SET tmdb_movie_detail_id = ?, updated_at = ? WHERE id = ?";
+        String sqlWithoutTmdb = "UPDATE kofic_movie_detail SET updated_at = ? WHERE id = ?";
         LocalDateTime now = LocalDateTime.now();
 
-        List<Object[]> batchParams = new ArrayList<>();
+        List<Object[]> batchParamsWithTmdb = new ArrayList<>();
+        List<Object[]> batchParamsWithoutTmdb = new ArrayList<>();
+        int skippedCount = 0;
+
         for (KoficTmdbMappingUpdate update : mappingUpdates) {
             if (update.getTmdbMovieDetailId() != null) {
-                batchParams.add(new Object[]{
+                batchParamsWithTmdb.add(new Object[]{
                     update.getTmdbMovieDetailId(),
                     now,
                     update.getKoficMovieDetailId()
                 });
+            } else {
+                // Instead of skipping, we'll update just the updated_at field
+                // This ensures the record is processed and can be identified for later processing
+                batchParamsWithoutTmdb.add(new Object[]{
+                    now,
+                    update.getKoficMovieDetailId()
+                });
+                skippedCount++;
+                log.warn("TMDB ID is null for KOFIC ID {}, updating only timestamp", update.getKoficMovieDetailId());
             }
         }
 
-        if (!batchParams.isEmpty()) {
-            jdbcTemplate.batchUpdate(sql, batchParams);
+        if (skippedCount > 0) {
+            log.warn("Found {} mappings without TMDB ID", skippedCount);
         }
+
+        int updatedWithTmdb = 0;
+        if (!batchParamsWithTmdb.isEmpty()) {
+            int[] results = jdbcTemplate.batchUpdate(sqlWithTmdb, batchParamsWithTmdb);
+            updatedWithTmdb = Arrays.stream(results).sum();
+            log.info("Updated {} KOFIC-TMDB mappings with TMDB ID", updatedWithTmdb);
+        }
+
+        int updatedWithoutTmdb = 0;
+        if (!batchParamsWithoutTmdb.isEmpty()) {
+            int[] results = jdbcTemplate.batchUpdate(sqlWithoutTmdb, batchParamsWithoutTmdb);
+            updatedWithoutTmdb = Arrays.stream(results).sum();
+            log.info("Updated {} KOFIC records without TMDB ID (timestamp only)", updatedWithoutTmdb);
+        }
+
+        log.info("Total KOFIC records processed: {}", updatedWithTmdb + updatedWithoutTmdb);
     }
 
     /**
@@ -1091,6 +1228,58 @@ public class TmdbBatchWriter {
             // MovieGenreMatch 생성은 tmdbMovieDetailAndMovieWriter에서 처리됨
             // 중복 생성 방지를 위해 여기서는 제거
             log.debug("Movie 엔티티 처리 완료. MovieGenreMatch는 메인 Writer에서 처리됩니다.");
+        }
+    }
+
+    /**
+     * 매핑된 영화들의 장르 매칭 정보를 저장하는 Writer
+     */
+    public ItemWriter<Map<Long, List<Long>>> mappedMovieGenreMatchWriter() {
+        return chunk -> {
+            List<Map<Long, List<Long>>> validItems = new ArrayList<>();
+            for (Map<Long, List<Long>> item : chunk.getItems()) {
+                if (item != null && !item.isEmpty()) {
+                    validItems.add(item);
+                }
+            }
+
+            if (validItems.isEmpty()) {
+                return;
+            }
+
+            try {
+                for (Map<Long, List<Long>> genreMatches : validItems) {
+                    saveMovieGenreMatches(genreMatches);
+                }
+                log.info("매핑된 영화들의 장르 매칭 정보 저장 완료");
+            } catch (Exception e) {
+                log.error("매핑된 영화 장르 매칭 저장 중 오류 발생: {}", e.getMessage(), e);
+                throw e;
+            }
+        };
+    }
+
+    /**
+     * 영화-장르 매칭 정보를 저장합니다.
+     */
+    @Transactional
+    protected void saveMovieGenreMatches(Map<Long, List<Long>> genreMatches) {
+        for (Map.Entry<Long, List<Long>> entry : genreMatches.entrySet()) {
+            Long tmdbMovieDetailId = entry.getKey();
+            List<Long> genreIds = entry.getValue();
+
+            for (Long genreId : genreIds) {
+                try {
+                    String sql = "INSERT INTO movie_genre_match (tmdb_movie_detail_id, movie_genre_id, registed_at, updated_at) " +
+                                "SELECT ?, mg.id, NOW(), NOW() " +
+                                "FROM movie_genre mg WHERE mg.genre_id = ? " +
+                                "ON DUPLICATE KEY UPDATE updated_at = NOW()";
+                    
+                    jdbcTemplate.update(sql, tmdbMovieDetailId, genreId);
+                } catch (Exception e) {
+                    log.error("영화 ID {}와 장르 ID {} 매칭 저장 실패: {}", tmdbMovieDetailId, genreId, e.getMessage());
+                }
+            }
         }
     }
 }

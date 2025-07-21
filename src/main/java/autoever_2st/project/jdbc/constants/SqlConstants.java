@@ -70,14 +70,22 @@ public class SqlConstants {
             "WHERE tmdb_movie_detail_id IN (:tmdbMovieDetailIds)";
 
     public static final String INSERT_MOVIE = 
-            "INSERT INTO movie (tmdb_movie_detail_id, registed_at, updated_at) " +
-            "VALUES (?, ?, ?) " +
+            "INSERT INTO movie (tmdb_movie_detail_id, kofic_movie_detail_id, registed_at, updated_at) " +
+            "VALUES (?, ?, ?, ?) " +
             "ON DUPLICATE KEY UPDATE " +
+            "kofic_movie_detail_id = VALUES(kofic_movie_detail_id), " +
             "updated_at = VALUES(updated_at)";
 
     public static final String UPDATE_MOVIE = 
             "UPDATE movie SET updated_at = ? " +
             "WHERE id = ?";
+
+    public static final String INSERT_MOVIE_WITH_KOFIC = 
+            "INSERT INTO movie (tmdb_movie_detail_id, kofic_movie_detail_id, registed_at, updated_at) " +
+            "VALUES (?, ?, ?, ?) " +
+            "ON DUPLICATE KEY UPDATE " +
+            "kofic_movie_detail_id = VALUES(kofic_movie_detail_id), " +
+            "updated_at = VALUES(updated_at)";
 
     // OttPlatform 관련 쿼리
     public static final String FIND_EXISTING_OTT_PLATFORMS = 

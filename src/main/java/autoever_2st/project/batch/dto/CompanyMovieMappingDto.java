@@ -21,6 +21,12 @@ public class CompanyMovieMappingDto {
         this.productionCompanies = productionCompanies;
     }
 
+    public CompanyMovieMappingDto(Long movieId, Long tmdbId) {
+        this.tmdbMovieId = tmdbId;
+        this.movieTitle = movieId.toString(); // movieId를 문자열로 저장
+        this.productionCompanies = List.of(); // 빈 리스트로 초기화
+    }
+
     @Getter
     @NoArgsConstructor
     public static class CompanyInfo {

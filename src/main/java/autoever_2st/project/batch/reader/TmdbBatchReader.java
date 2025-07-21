@@ -7,10 +7,7 @@ import autoever_2st.project.batch.dto.MovieImagesDto;
 import autoever_2st.project.batch.dto.MovieVideosDto;
 import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
 import autoever_2st.project.external.component.impl.tmdb.TmdbMovieApiComponentImpl;
-import autoever_2st.project.external.dto.tmdb.common.movie.CreditsWrapperDto;
-import autoever_2st.project.external.dto.tmdb.common.movie.DiscoverMovieWrapperDto;
-import autoever_2st.project.external.dto.tmdb.common.movie.MovieDetailWrapperDto;
-import autoever_2st.project.external.dto.tmdb.common.movie.SearchMovieWrapperDto;
+import autoever_2st.project.external.dto.tmdb.common.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
 import autoever_2st.project.external.entity.kofic.KoficMovieDetail;
@@ -70,6 +67,97 @@ public class TmdbBatchReader {
     public ItemReader<List<MovieResponseDto>> parallelMoviePageReader() {
         // 첫 페이지를 가져와서 총 페이지 수 확인
         DiscoverMovieWrapperDto firstPage = tmdbBatchComponent.getTmdbMovieApiComponent().getDiscoverMovieList(1);
+        int totalPages = Math.min(firstPage.getTotalPages(), 40); // 최대 40페이지로 제한
+
+        log.info("현재 상영중인 영화 데이터 로드 시작: 총 {}페이지 중 {}페이지까지 처리 예정", 
+                firstPage.getTotalPages(), totalPages);
+
+        List<MovieResponseDto> firstPageResults = firstPage.getResults();
+
+        final AtomicInteger currentBatch = new AtomicInteger(0);
+        final int totalBatches = (int) Math.ceil((totalPages - 1) / (double) BATCH_SIZE);
+
+        // 첫 번째 배치는 첫 페이지 결과
+        final List<MovieResponseDto> firstBatch = new ArrayList<>(firstPageResults);
+
+        return new ItemReader<List<MovieResponseDto>>() {
+            private boolean firstBatchReturned = false;
+            private boolean isCompleted = false;
+            private ExecutorService executor = null;
+
+            @Override
+            public List<MovieResponseDto> read() {
+                if (isCompleted) {
+                    return null;
+                }
+
+                // 첫 번째 배치는 이미 로드된 첫 페이지 결과 반환
+                if (!firstBatchReturned) {
+                    firstBatchReturned = true;
+                    log.info("{}개 항목으로 첫 번째 배치 처리", firstBatch.size());
+                    return firstBatch;
+                }
+
+                // 현재 배치 번호 가져오기
+                int batchIndex = currentBatch.getAndIncrement();
+
+                // 모든 배치를 처리했으면 종료
+                if (batchIndex >= totalBatches) {
+                    isCompleted = true;
+                    if (executor != null) {
+                        executor.shutdown();
+                    }
+                    log.info("현재 상영중인 영화 데이터 로드 완료: 총 {}개 배치 처리됨", totalBatches + 1);
+                    return null;
+                }
+
+                // 현재 배치의 시작/끝 페이지 계산
+                int startPage = batchIndex * BATCH_SIZE + 2; // 첫 페이지는 이미 처리했으므로 2부터 시작
+                int endPage = Math.min(startPage + BATCH_SIZE - 1, totalPages);
+
+                log.info("배치 {}/{} 처리 중: 페이지 {} ~ {} 로드", 
+                        batchIndex + 1, totalBatches + 1, startPage, endPage);
+
+                // 스레드 풀 생성
+                if (executor == null || executor.isShutdown()) {
+                executor = Executors.newFixedThreadPool(THREAD_COUNT);
+                }
+
+                // 현재 배치의 모든 페이지에 대한 Future 생성
+                List<CompletableFuture<PageResult>> futures = new ArrayList<>();
+                for (int pageNumber = startPage; pageNumber <= endPage; pageNumber++) {
+                    final int page = pageNumber;
+                    CompletableFuture<PageResult> future = CompletableFuture.supplyAsync(() -> {
+                        List<MovieResponseDto> items = tmdbBatchComponent.fetchMovieDiscover(page);
+                        return new PageResult(page, items);
+                    }, executor);
+                    futures.add(future);
+                }
+
+                // 모든 Future 결과 수집 및 정렬
+                List<MovieResponseDto> batchResults = new ArrayList<>();
+                    for (CompletableFuture<PageResult> future : futures) {
+                    try {
+                        PageResult result = future.get();
+                        if (result != null && result.getItems() != null) {
+                            batchResults.addAll(result.getItems());
+                    }
+                } catch (Exception e) {
+                        log.error("페이지 결과를 가져오는 중 오류 발생: {}", e.getMessage(), e);
+                    }
+                }
+
+                log.info("배치 {}/{} 완료: {}개 항목 로드됨", 
+                        batchIndex + 1, totalBatches + 1, batchResults.size());
+
+                return batchResults.isEmpty() ? null : batchResults;
+            }
+        };
+    }
+
+    public ItemReader<List<MovieResponseDto>> parallelUpcomingMoviePageReader() {
+        // 첫 페이지를 가져와서 총 페이지 수 확인
+        UpComingMovieWrapperDto firstPage = tmdbBatchComponent.getTmdbMovieApiComponent().getUpComingMovieList(1);
         int totalPages = firstPage.getTotalPages() > 500 ? 40 : firstPage.getTotalPages();
 
         List<MovieResponseDto> firstPageResults = firstPage.getResults();
@@ -165,19 +253,19 @@ public class TmdbBatchReader {
                     for (CompletableFuture<PageResult> future : futures) {
                         pageResults.add(future.get());
                     }
-                    
+
                     // 페이지 번호순으로 정렬하여 순서 보장
                     pageResults.sort(Comparator.comparingInt(PageResult::getPageNumber));
-                    
+
                     // 정렬된 순서대로 결과 추가
                     for (PageResult pageResult : pageResults) {
                         batchItems.addAll(pageResult.getItems());
                         log.debug("페이지 {} 결과 추가됨 - {}개 항목", pageResult.getPageNumber(), pageResult.getItems().size());
                     }
-                    
-                    log.info("배치 {} 완료 - 총 {}개 항목 (페이지 {}-{})", 
+
+                    log.info("배치 {} 완료 - 총 {}개 항목 (페이지 {}-{})",
                             batchIndex + 1, batchItems.size(), startPage, endPage);
-                    
+
                 } catch (Exception e) {
                     log.error("배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -407,19 +495,19 @@ public class TmdbBatchReader {
                     for (CompletableFuture<MovieWatchProvidersResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // TMDB ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(MovieWatchProvidersResult::getTmdbId));
-                    
+
                     // 정렬된 순서대로 결과 추가 (null이 아닌 것만)
                     for (MovieWatchProvidersResult result : results) {
                         if (result.getData() != null) {
                             batchResults.add(result.getData());
                         }
                     }
-                    
+
                     log.info("영화 OTT 제공자 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("영화 OTT 제공자 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -452,10 +540,12 @@ public class TmdbBatchReader {
         // 총 배치 수 계산 - 각 배치는 BATCH_SIZE 개의 영화를 처리
         final int totalBatches = (int) Math.ceil(totalMovies / (double) BATCH_SIZE);
 
+        log.info("Movie Image 읽기 시작. 총 영화: {}개, 총 배치: {}개, 스레드 수: {}개",
+                totalMovies, totalBatches, THREAD_COUNT);
+
         // 현재 처리 중인 배치 번호
         final AtomicInteger currentBatch = new AtomicInteger(0);
 
-        // 배치 목록을 점진적으로 반환하는 ItemReader 생성
         return new ItemReader<List<MovieImagesDto>>() {
             private boolean isCompleted = false;
             private ExecutorService executor = null;
@@ -585,17 +675,17 @@ public class TmdbBatchReader {
                     for (CompletableFuture<MovieImagesResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // TMDB ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(MovieImagesResult::getTmdbId));
-                    
+
                     // 정렬된 순서대로 결과 추가
                     for (MovieImagesResult result : results) {
                         batchResults.add(result.getData());
                     }
-                    
+
                     log.info("영화 이미지 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("영화 이미지 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -760,17 +850,17 @@ public class TmdbBatchReader {
                     for (CompletableFuture<MovieVideosResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // TMDB ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(MovieVideosResult::getTmdbId));
-                    
+
                     // 정렬된 순서대로 결과 추가
                     for (MovieVideosResult result : results) {
                         batchResults.add(result.getData());
                     }
-                    
+
                     log.info("영화 비디오 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("영화 비디오 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -950,17 +1040,17 @@ public class TmdbBatchReader {
                     for (CompletableFuture<CreditsResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // TMDB ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(CreditsResult::getTmdbId));
-                    
+
                     // 정렬된 순서대로 결과 추가
                     for (CreditsResult result : results) {
                         batchResults.add(result.getData());
                     }
-                    
+
                     log.info("영화 크레딧 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("영화 크레딧 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -1084,7 +1174,7 @@ public class TmdbBatchReader {
                 if (isCompleted) {
                     return null;
                 }
-                
+
                 int batchIndex = currentBatch.getAndIncrement();
 
                 if (batchIndex >= totalBatches) {
@@ -1207,19 +1297,19 @@ public class TmdbBatchReader {
                     for (CompletableFuture<MovieDetailResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // TMDB ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(MovieDetailResult::getTmdbId));
-                    
+
                     // 정렬된 순서대로 결과 추가 (null이 아닌 것만)
                     for (MovieDetailResult result : results) {
                         if (result.getData() != null) {
                             batchResults.add(result.getData());
                         }
                     }
-                    
+
                     log.info("영화 상세 정보 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("영화 상세 정보 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -1268,7 +1358,7 @@ public class TmdbBatchReader {
                 if (isCompleted) {
                     return null;
                 }
-                
+
                 int batchIndex = currentBatch.getAndIncrement();
 
                 if (batchIndex >= totalBatches) {
@@ -1362,19 +1452,19 @@ public class TmdbBatchReader {
                     for (CompletableFuture<CompanyMovieMappingResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // TMDB ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(CompanyMovieMappingResult::getTmdbId));
-                    
+
                     // 정렬된 순서대로 결과 추가 (null이 아닌 것만)
                     for (CompanyMovieMappingResult result : results) {
                         if (result.getData() != null) {
                             batchResults.add(result.getData());
                         }
                     }
-                    
+
                     log.info("영화-제작사 매핑 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("영화-제작사 매핑 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -1403,7 +1493,7 @@ public class TmdbBatchReader {
     public ItemReader<List<KoficTmdbMappingDto>> koficTmdbMappingReader() {
         // KOFIC 영화 데이터베이스에서 모든 영화 가져오기 (TMDB 매핑이 안된 것만)
         List<KoficMovieDetail> unmappedKoficMovies = koficMovieDetailRepository.findAllByTmdbMovieDetailIsNull();
-        
+
         if (unmappedKoficMovies.isEmpty()) {
             log.info("매핑되지 않은 KOFIC 영화가 없습니다.");
             return new ItemReader<List<KoficTmdbMappingDto>>() {
@@ -1466,33 +1556,59 @@ public class TmdbBatchReader {
                 for (KoficMovieDetail koficMovie : batchKoficMovies) {
                     CompletableFuture<KoficTmdbMappingResult> future = CompletableFuture.supplyAsync(() -> {
                         try {
-                            // KOFIC 영화 이름으로 TMDB 검색
-                            SearchMovieWrapperDto searchResult = tmdbMovieApiComponent.getSearchMovieList(koficMovie.getName(), 1);
-                            
+                            // 1. 먼저 기존 DB에서 제목으로 검색
+                    String movieName = koficMovie.getName();
+                    Page<TmdbMovieDetail> existingMovies = tmdbMovieDetailRepository.findAllByTitleContainingOrderByPopularityDesc(
+                            movieName, PageRequest.of(0, 5));
+
+                            // 검색 결과가 있고, 첫 번째 결과의 제목이 KOFIC 영화 이름과 정확히 일치하는 경우
+                    if (!existingMovies.isEmpty()) {
+                        for (TmdbMovieDetail existingMovie : existingMovies.getContent()) {
+                            // 제목이 정확히 일치하거나 매우 유사한 경우 (대소문자 무시)
+                            if (existingMovie.getTitle().equalsIgnoreCase(movieName) || 
+                                existingMovie.getTitle().replaceAll("\\s+", "").equalsIgnoreCase(movieName.replaceAll("\\s+", ""))) {
+                                log.info("DB에서 제목 일치하는 영화 찾음 - KOFIC: {}, TMDB: {}", 
+                                        movieName, existingMovie.getTitle());
+                                        return new KoficTmdbMappingResult(koficMovie.getId(), 
+                                        new KoficTmdbMappingDto(koficMovie, existingMovie, true));
+                            }
+                        }
+
+                                // 정확히 일치하는 것은 없지만 유사한 결과가 있는 경우 로그
+                                log.debug("DB에서 유사한 제목의 영화를 찾았으나 정확히 일치하지 않음 - KOFIC: {}, 유사 TMDB: {}", 
+                                        movieName, existingMovies.getContent().get(0).getTitle());
+                            }
+
+                            // 2. DB에서 찾지 못한 경우 TMDB API로 검색
+                            log.debug("DB에서 영화를 찾지 못해 TMDB API 검색 시도: {}", movieName);
+                            SearchMovieWrapperDto searchResult = tmdbMovieApiComponent.getSearchMovieList(movieName, 1);
+
                             if (searchResult == null || searchResult.getResults() == null || searchResult.getResults().isEmpty()) {
-                                log.debug("TMDB에서 영화를 찾을 수 없음: {}", koficMovie.getName());
+                                log.debug("TMDB API에서도 영화를 찾을 수 없음: {}", movieName);
                                 return new KoficTmdbMappingResult(koficMovie.getId(), null);
                             }
 
-                            // 첫 번째 검색 결과를 선택 (가장 관련성이 높은 것으로 간주)
-                            MovieResponseDto tmdbMovie = searchResult.getResults().get(0);
-                            
-                            // 이미 데이터베이스에 존재하는지 확인
-                            if (tmdbMovieDetailRepository.existsByTmdbId(tmdbMovie.getId().longValue())) {
+                                // 첫 번째 검색 결과를 선택 (가장 관련성이 높은 것으로 간주)
+                                MovieResponseDto tmdbMovie = searchResult.getResults().get(0);
+
+                                // 이미 데이터베이스에 존재하는지 확인
+                                if (tmdbMovieDetailRepository.existsByTmdbId(tmdbMovie.getId().longValue())) {
                                 log.debug("TMDB 영화가 이미 데이터베이스에 존재함 - KOFIC: {}, TMDB ID: {}", 
-                                        koficMovie.getName(), tmdbMovie.getId());
-                                
+                                        movieName, tmdbMovie.getId());
+
                                 // 기존 TmdbMovieDetail 조회하여 매핑만 수행
-                                Optional<TmdbMovieDetail> existingTmdbMovie = tmdbMovieDetailRepository.findByTmdbId(tmdbMovie.getId().longValue());
-                                if (existingTmdbMovie.isPresent()) {
+                                    Optional<TmdbMovieDetail> existingTmdbMovie = tmdbMovieDetailRepository.findByTmdbId(tmdbMovie.getId().longValue());
+                                    if (existingTmdbMovie.isPresent()) {
                                     return new KoficTmdbMappingResult(koficMovie.getId(), 
-                                        new KoficTmdbMappingDto(koficMovie, existingTmdbMovie.get(), true));
-                                }
+                                                new KoficTmdbMappingDto(koficMovie, existingTmdbMovie.get(), true));
+                                    }
                             }
 
                             // 새로운 TMDB 영화 데이터이므로 전체 데이터 수집 필요
+                                    log.info("TMDB API에서 새 영화 데이터 찾음 - KOFIC: {}, TMDB: {}", 
+                                            movieName, tmdbMovie.getTitle());
                             return new KoficTmdbMappingResult(koficMovie.getId(), 
-                                new KoficTmdbMappingDto(koficMovie, tmdbMovie, false));
+                                            new KoficTmdbMappingDto(koficMovie, tmdbMovie, false));
 
                         } catch (Exception e) {
                             log.error("KOFIC 영화 {}에 대한 TMDB 매핑 중 오류 발생: {}", 
@@ -1503,14 +1619,14 @@ public class TmdbBatchReader {
 
                     futures.add(future);
 
-                    // API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
-                    try {
+                        // API 호출 사이에 짧은 지연 추가 (레이트 리밋 준수)
+                        try {
                         Thread.sleep(100); // 100ms 대기
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        log.error("API 호출 사이에 대기하는 동안 중단됨", e);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            log.error("API 호출 사이에 대기하는 동안 중단됨", e);
+                        }
                     }
-                }
 
                 // 모든 Future 결과 수집하고 KOFIC ID 순서대로 정렬
                 List<KoficTmdbMappingDto> batchResults = new ArrayList<>();
@@ -1519,19 +1635,19 @@ public class TmdbBatchReader {
                     for (CompletableFuture<KoficTmdbMappingResult> future : futures) {
                         results.add(future.get());
                     }
-                    
+
                     // KOFIC ID 순서대로 정렬하여 순서 보장
                     results.sort(Comparator.comparingLong(KoficTmdbMappingResult::getKoficId));
-                    
+
                     // 정렬된 순서대로 결과 추가 (null이 아닌 것만)
                     for (KoficTmdbMappingResult result : results) {
                         if (result.getData() != null) {
                             batchResults.add(result.getData());
                         }
                     }
-                    
+
                     log.info("KOFIC-TMDB 매핑 배치 {} 완료 - {}개 결과", batchIndex + 1, batchResults.size());
-                    
+
                 } catch (Exception e) {
                     log.error("KOFIC-TMDB 매핑 배치 결과 수집 중 오류 발생: {}", e.getMessage(), e);
                     return new ArrayList<>();
@@ -1601,7 +1717,7 @@ public class TmdbBatchReader {
 
         return batchMovies;
     }
-    
+
     /**
      * 페이지 번호와 해당 페이지의 결과를 함께 저장하는 클래스
      * 멀티스레드 환경에서 순서 보장을 위해 사용
@@ -1609,16 +1725,16 @@ public class TmdbBatchReader {
     private static class PageResult {
         private final int pageNumber;
         private final List<MovieResponseDto> items;
-        
+
         public PageResult(int pageNumber, List<MovieResponseDto> items) {
             this.pageNumber = pageNumber;
             this.items = items != null ? items : new ArrayList<>();
         }
-        
+
         public int getPageNumber() {
             return pageNumber;
         }
-        
+
         public List<MovieResponseDto> getItems() {
             return items;
         }
@@ -1783,5 +1899,345 @@ public class TmdbBatchReader {
         public KoficTmdbMappingDto getData() {
             return data;
         }
+    }
+
+    /**
+     * KOFIC에서 매핑된 TMDB 영화들의 상세 정보를 가져오는 Reader
+     */
+    public ItemReader<List<MovieDetailWrapperDto>> mappedMovieDetailReader() {
+        // KOFIC과 매핑된 TMDB 영화 ID 목록 조회
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없습니다.");
+            return new ItemReader<List<MovieDetailWrapperDto>>() {
+                @Override
+                public List<MovieDetailWrapperDto> read() {
+                    return null;
+                }
+            };
+        }
+
+        List<Long> tmdbIds = mappedMovies.stream()
+                .map(TmdbMovieDetail::getTmdbId)
+                .collect(Collectors.toList());
+
+        log.info("매핑된 TMDB 영화 {}개에 대한 상세 정보 수집 시작", tmdbIds.size());
+
+        return createMovieDetailBatchReader(tmdbIds);
+    }
+
+    /**
+     * KOFIC에서 매핑된 TMDB 영화들의 장르 매칭을 처리하는 Reader
+     */
+    public ItemReader<List<Long>> mappedMovieGenreMatchReader() {
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없어 장르 매칭을 건너뜁니다.");
+            return new ItemReader<List<Long>>() {
+                private boolean read = false;
+
+                @Override
+                public List<Long> read() {
+                    if (read) {
+                        return null;
+                    }
+                    read = true;
+                    return new ArrayList<>();
+                }
+            };
+        }
+
+        List<Long> movieIds = mappedMovies.stream()
+                .map(TmdbMovieDetail::getId)
+                .collect(Collectors.toList());
+
+        log.info("매핑된 TMDB 영화 {}개에 대한 장르 매칭 시작", movieIds.size());
+
+        return new ItemReader<List<Long>>() {
+            private boolean read = false;
+
+            @Override
+            public List<Long> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return movieIds;
+            }
+        };
+    }
+
+    /**
+     * KOFIC에서 매핑된 영화-제작사 매핑을 처리하는 Reader
+     */
+    public ItemReader<List<CompanyMovieMappingDto>> mappedCompanyMovieMappingReader() {
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없어 제작사 매핑을 건너뜁니다.");
+            return new ItemReader<List<CompanyMovieMappingDto>>() {
+                private boolean read = false;
+
+                @Override
+                public List<CompanyMovieMappingDto> read() {
+                    if (read) {
+                        return null;
+                    }
+                    read = true;
+                    return new ArrayList<>();
+                }
+            };
+        }
+
+        List<CompanyMovieMappingDto> mappings = mappedMovies.stream()
+                .filter(movie -> movie.getMovie() != null)
+                .map(movie -> new CompanyMovieMappingDto(movie.getMovie().getId(), movie.getTmdbId()))
+                .collect(Collectors.toList());
+
+        log.info("매핑된 TMDB 영화 {}개에 대한 제작사 매핑 시작", mappings.size());
+
+        return new ItemReader<List<CompanyMovieMappingDto>>() {
+            private boolean read = false;
+
+            @Override
+            public List<CompanyMovieMappingDto> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return mappings;
+            }
+        };
+    }
+
+    /**
+     * KOFIC에서 매핑된 TMDB 영화들의 OTT 제공자 정보를 가져오는 Reader
+     */
+    public ItemReader<List<MovieWatchProvidersDto>> mappedMovieWatchProvidersReader() {
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없어 OTT 제공자 정보 수집을 건너뜁니다.");
+            return new ItemReader<List<MovieWatchProvidersDto>>() {
+                private boolean read = false;
+
+                @Override
+                public List<MovieWatchProvidersDto> read() {
+                    if (read) {
+                        return null;
+                    }
+                    read = true;
+                    return new ArrayList<>();
+                }
+            };
+        }
+
+        List<MovieWatchProvidersDto> watchProviders = new ArrayList<>();
+        
+        log.info("매핑된 TMDB 영화 {}개에 대한 OTT 제공자 정보 수집 시작", mappedMovies.size());
+        
+        for (TmdbMovieDetail movie : mappedMovies) {
+            try {
+                Set<WatchProvidersDto.ProviderInner> providers = tmdbMovieApiComponent.getMovieWatchProviders(movie.getTmdbId());
+                watchProviders.add(new MovieWatchProvidersDto(movie.getId(), movie.getTmdbId(), providers));
+            } catch (Exception e) {
+                log.error("영화 {}의 OTT 제공자 정보 조회 실패: {}", movie.getTmdbId(), e.getMessage());
+            }
+        }
+
+        return new ItemReader<List<MovieWatchProvidersDto>>() {
+            private boolean read = false;
+
+            @Override
+            public List<MovieWatchProvidersDto> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return watchProviders;
+            }
+        };
+    }
+
+    /**
+     * KOFIC에서 매핑된 TMDB 영화들의 이미지 정보를 가져오는 Reader
+     */
+    public ItemReader<List<MovieImagesDto>> mappedMovieImagesReader() {
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없어 이미지 정보 수집을 건너뜁니다.");
+            return new ItemReader<List<MovieImagesDto>>() {
+                private boolean read = false;
+
+                @Override
+                public List<MovieImagesDto> read() {
+                    if (read) {
+                        return null;
+                    }
+                    read = true;
+                    return new ArrayList<>();
+                }
+            };
+        }
+
+        List<MovieImagesDto> movieImages = new ArrayList<>();
+        
+        log.info("매핑된 TMDB 영화 {}개에 대한 이미지 정보 수집 시작", mappedMovies.size());
+        
+        for (TmdbMovieDetail movie : mappedMovies) {
+            try {
+                List<MovieImageWithTypeDto> images = tmdbBatchComponent.fetchMovieImages(movie.getTmdbId());
+                movieImages.add(new MovieImagesDto(movie.getId(), movie.getTmdbId(), images));
+            } catch (Exception e) {
+                log.error("영화 {}의 이미지 정보 조회 실패: {}", movie.getTmdbId(), e.getMessage());
+            }
+        }
+
+        return new ItemReader<List<MovieImagesDto>>() {
+            private boolean read = false;
+
+            @Override
+            public List<MovieImagesDto> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return movieImages;
+            }
+        };
+    }
+
+    /**
+     * KOFIC에서 매핑된 TMDB 영화들의 비디오 정보를 가져오는 Reader
+     */
+    public ItemReader<List<MovieVideosDto>> mappedMovieVideosReader() {
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없어 비디오 정보 수집을 건너뜁니다.");
+            return new ItemReader<List<MovieVideosDto>>() {
+                private boolean read = false;
+
+                @Override
+                public List<MovieVideosDto> read() {
+                    if (read) {
+                        return null;
+                    }
+                    read = true;
+                    return new ArrayList<>();
+                }
+            };
+        }
+
+        List<MovieVideosDto> movieVideos = new ArrayList<>();
+        
+        log.info("매핑된 TMDB 영화 {}개에 대한 비디오 정보 수집 시작", mappedMovies.size());
+        
+        for (TmdbMovieDetail movie : mappedMovies) {
+            try {
+                List<VideoDto> videos = tmdbBatchComponent.fetchMovieVideos(movie.getTmdbId());
+                movieVideos.add(new MovieVideosDto(movie.getId(), movie.getTmdbId(), videos));
+            } catch (Exception e) {
+                log.error("영화 {}의 비디오 정보 조회 실패: {}", movie.getTmdbId(), e.getMessage());
+            }
+        }
+
+        return new ItemReader<List<MovieVideosDto>>() {
+            private boolean read = false;
+
+            @Override
+            public List<MovieVideosDto> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return movieVideos;
+            }
+        };
+    }
+
+    /**
+     * KOFIC에서 매핑된 TMDB 영화들의 크레딧 정보를 가져오는 Reader
+     */
+    public ItemReader<List<CreditsWrapperDto>> mappedMovieCreditsReader() {
+        List<TmdbMovieDetail> mappedMovies = tmdbMovieDetailRepository.findAllByMovieIsNotNull();
+        
+        if (mappedMovies.isEmpty()) {
+            log.info("매핑된 TMDB 영화가 없어 크레딧 정보 수집을 건너뜁니다.");
+            return new ItemReader<List<CreditsWrapperDto>>() {
+                private boolean read = false;
+
+                @Override
+                public List<CreditsWrapperDto> read() {
+                    if (read) {
+                        return null;
+                    }
+                    read = true;
+                    return new ArrayList<>();
+                }
+            };
+        }
+
+        List<CreditsWrapperDto> movieCredits = new ArrayList<>();
+        
+        log.info("매핑된 TMDB 영화 {}개에 대한 크레딧 정보 수집 시작", mappedMovies.size());
+        
+        for (TmdbMovieDetail movie : mappedMovies) {
+            try {
+                CreditsWrapperDto credits = tmdbBatchComponent.fetchMovieCredits(movie.getTmdbId());
+                if (credits != null) {
+                    movieCredits.add(credits);
+                }
+            } catch (Exception e) {
+                log.error("영화 {}의 크레딧 정보 조회 실패: {}", movie.getTmdbId(), e.getMessage());
+            }
+        }
+
+        return new ItemReader<List<CreditsWrapperDto>>() {
+            private boolean read = false;
+
+            @Override
+            public List<CreditsWrapperDto> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return movieCredits;
+            }
+        };
+    }
+
+    /**
+     * 영화 상세 정보를 배치로 가져오는 공통 Reader 생성
+     */
+    private ItemReader<List<MovieDetailWrapperDto>> createMovieDetailBatchReader(List<Long> tmdbIds) {
+        List<MovieDetailWrapperDto> movieDetails = new ArrayList<>();
+        
+        for (Long tmdbId : tmdbIds) {
+            try {
+                MovieDetailWrapperDto detail = tmdbBatchComponent.fetchMovieDetail(tmdbId);
+                if (detail != null) {
+                    movieDetails.add(detail);
+                }
+            } catch (Exception e) {
+                log.error("영화 {}의 상세 정보 조회 실패: {}", tmdbId, e.getMessage());
+            }
+        }
+
+        return new ItemReader<List<MovieDetailWrapperDto>>() {
+            private boolean read = false;
+
+            @Override
+            public List<MovieDetailWrapperDto> read() {
+                if (read) {
+                    return null;
+                }
+                read = true;
+                return movieDetails;
+            }
+        };
     }
 }

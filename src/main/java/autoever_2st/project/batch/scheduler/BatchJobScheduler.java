@@ -71,9 +71,45 @@ public class BatchJobScheduler {
     }
 
     public void runAllJobs() {
-        runTmdbMovieJob();
-        runKoficBoxOfficeJob();
-        runKoficTmdbMappingJob();
+        log.info("=== 전체 배치 작업 시작 ===");
+        
+        try {
+            // 1단계: KOFIC 박스오피스 데이터 적재
+            // - 한국 박스오피스 top 10 영화 정보 수집
+            // - KoficMovieDetail, KoficBoxOffice 테이블에 저장
+            log.info("1단계: KOFIC 박스오피스 데이터 적재 시작");
+            runKoficBoxOfficeJob();
+            log.info("1단계: KOFIC 박스오피스 데이터 적재 완료");
+            
+            // 잠시 대기 (데이터베이스 트랜잭션 완료 보장)
+            Thread.sleep(5000);
+            
+            // 3단계: KOFIC-TMDB 매핑 작업 (추가 관계 설정)
+            // - KOFIC 영화명으로 TMDB 데이터 검색 및 매핑
+            // - 기존 수집된 TMDB 데이터와 연결 관계 생성
+            // - 매핑 작업만 수행 (상세 데이터 수집 없음)
+            log.info("2단계: KOFIC-TMDB 매핑 작업 시작 (관계 설정만)");
+            runKoficTmdbMappingJob();
+            log.info("2단계: KOFIC-TMDB 매핑 작업 완료");
+            
+            // 잠시 대기 (데이터베이스 트랜잭션 완료 보장)
+            Thread.sleep(5000);
+
+            // 2단계: TMDB 상세 데이터 수집 (메인 데이터 수집)
+            // - 현재 상영중/개봉 예정 영화 800개 (40페이지 x 20개) 수집
+            // - 장르, 제작사, OTT, 이미지, 비디오, 크레딧 등 모든 관련 데이터 수집
+            // - TmdbMovieDetail, Movie, 및 모든 관련 테이블에 저장
+            // - 배치 처리로 고성능 수집
+            log.info("3단계: TMDB 상세 데이터 수집 시작 (메인 데이터 수집)");
+            runTmdbMovieJob();
+            log.info("3단계: TMDB 상세 데이터 수집 완료");
+            
+            log.info("=== 전체 배치 작업 완료 ===");
+            
+        } catch (Exception e) {
+            log.error("배치 작업 중 오류 발생: {}", e.getMessage(), e);
+            throw new RuntimeException("배치 작업 실패", e);
+        }
     }
 
     public void runTmdbJobs() {

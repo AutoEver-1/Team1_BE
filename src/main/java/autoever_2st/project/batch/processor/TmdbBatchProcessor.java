@@ -13,10 +13,13 @@ import autoever_2st.project.batch.dto.KoficTmdbProcessedData;
 import autoever_2st.project.batch.dto.MovieImagesDto;
 import autoever_2st.project.batch.dto.MovieVideosDto;
 import autoever_2st.project.batch.dto.MovieWatchProvidersDto;
+import autoever_2st.project.external.component.impl.tmdb.TmdbMovieApiComponentImpl;
 import autoever_2st.project.external.dto.tmdb.common.movie.CreditsWrapperDto;
 import autoever_2st.project.external.dto.tmdb.common.movie.MovieDetailWrapperDto;
+import autoever_2st.project.external.dto.tmdb.common.movie.SearchMovieWrapperDto;
 import autoever_2st.project.external.dto.tmdb.response.movie.*;
 import autoever_2st.project.external.dto.tmdb.response.ott.OttWrapperDto;
+import autoever_2st.project.external.entity.kofic.KoficMovieDetail;
 import autoever_2st.project.external.entity.tmdb.*;
 import autoever_2st.project.external.enums.Gender;
 import autoever_2st.project.external.repository.tmdb.TmdbMovieDetailRepository;
@@ -25,10 +28,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 /**
  * 영화 ID를 받아 영화 상세 정보를 가져오고 엔티티로 변환하는 Processor
@@ -44,6 +50,7 @@ public class TmdbBatchProcessor {
     private final TmdbMovieDetailDao tmdbMovieDetailDao;
     private final ProductCompanyDao productCompanyDao;
     private final MovieDao movieDao;
+    private final TmdbMovieApiComponentImpl tmdbMovieApiComponent;
 
     /**
      * 영화 ID를 받아 영화 상세 정보를 가져오고 엔티티로 변환하는 Processor
@@ -189,7 +196,7 @@ public class TmdbBatchProcessor {
             for (OttWrapperDto ottWrapperDto : uniqueOttWrapperDtos) {
                 try {
                     if (ottWrapperDto.getProviderId() != null) {
-                        OttPlatform ottPlatform = new OttPlatform(ottWrapperDto.getProviderId().longValue(), ottWrapperDto.getProviderName());
+                        OttPlatform ottPlatform = new OttPlatform(ottWrapperDto.getProviderId().longValue(), ottWrapperDto.getProviderName(), ottWrapperDto.getLogoPath());
                         results.add(ottPlatform);
                     } else {
                         log.warn("null ID리턴하여 OTT 플랫폼 건너뜀: {}}", ottWrapperDto.getProviderName());
@@ -306,23 +313,29 @@ public class TmdbBatchProcessor {
 
             // 각 영화별로 이미지 처리
             for (MovieImagesDto movieImagesDto : movieImagesDtos) {
-                Long movieId = movieImagesDto.getMovieId();
+                // tmdbId 우선 사용, null이면 movieId 사용
+                Long tmdbId = movieImagesDto.getTmdbId() != null ? movieImagesDto.getTmdbId() : movieImagesDto.getMovieId();
                 List<MovieImageWithTypeDto> images = movieImagesDto.getImages();
 
-                if (images == null || images.isEmpty()) {
-                    log.warn("영화 ID {}에 대해 처리할 이미지가 없습니다.", movieId);
+                if (tmdbId == null) {
+                    log.warn("TMDB ID와 Movie ID가 모두 null입니다. 이미지를 처리할 수 없음.");
                     continue;
                 }
 
-                // 영화 상세 정보 확인 - movieId와 tmdbId 매칭
-                TmdbMovieDetail tmdbMovieDetail = tmdbIdToDetailMap.get(movieId);
+                if (images == null || images.isEmpty()) {
+                    log.warn("영화 TMDB ID {}에 대해 처리할 이미지가 없습니다.", tmdbId);
+                    continue;
+                }
+
+                // 영화 상세 정보 확인 - tmdbId로 매칭
+                TmdbMovieDetail tmdbMovieDetail = tmdbIdToDetailMap.get(tmdbId);
                 if (tmdbMovieDetail == null) {
-                    log.warn("TMDB ID {}에 대한 TmdbMovieDetail을 찾을 수 없음. 이미지를 처리할 수 없음.", movieId);
+                    log.warn("TMDB ID {}에 대한 TmdbMovieDetail을 찾을 수 없음. 이미지를 처리할 수 없음.", tmdbId);
                     continue;
                 }
 
                 Long tmdbMovieDetailId = tmdbMovieDetail.getId();
-                log.info("TMDB ID {}에 대한 영화 세부 정보 ID {} 찾기 완료.", tmdbMovieDetailId, movieId);
+                log.debug("TMDB ID {}에 대한 영화 세부 정보 ID {} 찾기 완료.", tmdbId, tmdbMovieDetailId);
 
                 // 이미지 처리
                 for (MovieImageWithTypeDto imageWithTypeDto : images) {
@@ -345,14 +358,14 @@ public class TmdbBatchProcessor {
                         image.setTmdbMovieDetail(tmdbMovieDetail);
                         allResults.add(image);
                     } catch (Exception e) {
-                        log.error("Error processing movie image for movie ID {}: {}", movieId, e.getMessage(), e);
+                        log.error("Error processing movie image for TMDB ID {}: {}", tmdbId, e.getMessage(), e);
                     }
                 }
 
-                log.info("영화 ID {}에 대한 {}개의 이미지 처리 완료", images.size(), movieId);
+                log.debug("TMDB ID {}에 대한 {}개의 이미지 처리 완료", tmdbId, images.size());
             }
 
-            log.info("총 {}개의 영화에 대한 {} 개의 이미지 처리완료.", allResults.size(), movieImagesDtos.size());
+            log.info("총 {}개의 영화에 대한 {} 개의 이미지 처리완료.", movieImagesDtos.size(), allResults.size());
             return allResults;
         };
     }
@@ -392,23 +405,29 @@ public class TmdbBatchProcessor {
 
             // 각 영화별로 비디오 처리
             for (MovieVideosDto movieVideosDto : movieVideosDtos) {
-                Long movieId = movieVideosDto.getMovieId();
+                // tmdbId 우선 사용, null이면 movieId 사용
+                Long tmdbId = movieVideosDto.getTmdbId() != null ? movieVideosDto.getTmdbId() : movieVideosDto.getMovieId();
                 List<VideoDto> videos = movieVideosDto.getVideos();
 
-                if (videos == null || videos.isEmpty()) {
-                    log.warn("영화 ID {}에 대해 처리할 비디오 없음", movieId);
+                if (tmdbId == null) {
+                    log.warn("TMDB ID와 Movie ID가 모두 null입니다. 비디오를 처리할 수 없음.");
                     continue;
                 }
 
-                // 영화 상세 정보 확인 - movieId와 tmdbId 매칭
-                TmdbMovieDetail tmdbMovieDetail = tmdbIdToDetailMap.get(movieId);
+                if (videos == null || videos.isEmpty()) {
+                    log.warn("영화 TMDB ID {}에 대해 처리할 비디오 없음", tmdbId);
+                    continue;
+                }
+
+                // 영화 상세 정보 확인 - tmdbId로 매칭
+                TmdbMovieDetail tmdbMovieDetail = tmdbIdToDetailMap.get(tmdbId);
                 if (tmdbMovieDetail == null) {
-                    log.warn("TMDB ID {}에 대한 TmdbMovieDetail을 찾을 수 없음. 비디오를 처리할 수 없음.", movieId);
+                    log.warn("TMDB ID {}에 대한 TmdbMovieDetail을 찾을 수 없음. 비디오를 처리할 수 없음.", tmdbId);
                     continue;
                 }
 
                 Long tmdbMovieDetailId = tmdbMovieDetail.getId();
-                log.info("TMDB ID {}에 대한 영화 세부 정보 ID {} 찾기 완료", tmdbMovieDetailId, movieId);
+                log.debug("TMDB ID {}에 대한 영화 세부 정보 ID {} 찾기 완료", tmdbId, tmdbMovieDetailId);
 
                 // 비디오 처리
                 for (VideoDto videoDto : videos) {
@@ -433,14 +452,14 @@ public class TmdbBatchProcessor {
                         video.setTmdbMovieDetail(tmdbMovieDetail);
                         allResults.add(video);
                     } catch (Exception e) {
-                        log.error("영화 ID {}에 대한 영화 비디오를 처리하는 중 오류 발생: {}", movieId, e.getMessage(), e);
+                        log.error("영화 TMDB ID {}에 대한 영화 비디오를 처리하는 중 오류 발생: {}", tmdbId, e.getMessage(), e);
                     }
                 }
 
-                log.info("영화 ID {}에 대한 {}개의 비디오 처리완료.", videos.size(), movieId);
+                log.debug("TMDB ID {}에 대한 {}개의 비디오 처리완료.", tmdbId, videos.size());
             }
 
-            log.info("총 {}개의 영화에 대한 {}개의 비디오 처리 완료", allResults.size(), movieVideosDtos.size());
+            log.info("총 {}개의 영화에 대한 {}개의 비디오 처리 완료", movieVideosDtos.size(), allResults.size());
             return allResults;
         };
     }
@@ -883,7 +902,7 @@ public class TmdbBatchProcessor {
 
     /**
      * KOFIC-TMDB 매핑 데이터를 처리하는 Processor
-     * 이미 존재하는 TMDB 데이터는 매핑만 수행하고, 새로운 TMDB 데이터는 전체 엔티티를 생성합니다.
+     * KOFIC 영화명으로 TMDB API를 검색하여 매핑합니다.
      */
     public ItemProcessor<List<KoficTmdbMappingDto>, List<KoficTmdbProcessedData>> koficTmdbMappingProcessor() {
         return koficTmdbMappingList -> {
@@ -895,50 +914,52 @@ public class TmdbBatchProcessor {
 
             for (KoficTmdbMappingDto mappingDto : koficTmdbMappingList) {
                 try {
-                    if (mappingDto.isExistingMapping()) {
-                        // 기존 TMDB 영화와 매핑만 수행
-                        processedDataList.add(new KoficTmdbProcessedData(
-                            mappingDto.getKoficMovie(),
-                            mappingDto.getExistingTmdbMovie(),
-                            true
-                        ));
-                        log.debug("기존 TMDB 영화와 매핑: KOFIC={}, TMDB ID={}", 
-                                mappingDto.getKoficMovie().getName(), 
-                                mappingDto.getExistingTmdbMovie().getTmdbId());
-                    } else {
-                        // 새로운 TMDB 영화 데이터 생성
-                        MovieResponseDto tmdbMovie = mappingDto.getNewTmdbMovie();
+                    String movieName = mappingDto.getMovieName();
+                    KoficMovieDetail koficMovie = mappingDto.getKoficMovie();
+                    
+                    log.info("TMDB API 검색 시작: {}", movieName);
+                    
+                    // TMDB API로 영화 검색
+                    SearchMovieWrapperDto searchResult = tmdbMovieApiComponent.getSearchMovieList(movieName, 1);
+                    
+                    if (searchResult != null && searchResult.getResults() != null && !searchResult.getResults().isEmpty()) {
+                        // 첫 번째 검색 결과 선택
+                        MovieResponseDto movieResponse = searchResult.getResults().get(0);
+                        Long tmdbId = movieResponse.getId().longValue();
                         
-                        // MovieResponseDto를 TmdbMovieDetail 엔티티로 변환
-                        TmdbMovieDetail tmdbMovieDetail = new TmdbMovieDetail(
-                            tmdbMovie.getAdult() != null ? tmdbMovie.getAdult() : false,
-                            tmdbMovie.getId().longValue(),
-                            tmdbMovie.getTitle(),
-                            tmdbMovie.getOriginalTitle(),
-                            tmdbMovie.getOriginalLanguage(),
-                            tmdbMovie.getOverview(),
-                            null, // status는 detail API에서만 제공
-                            null, // releaseDate는 Date 타입으로 변환 필요시 처리
-                            null, // runtime은 detail API에서만 제공
-                            tmdbMovie.getVideo(),
-                            tmdbMovie.getVoteAverage(),
-                            tmdbMovie.getVoteCount().longValue(),
-                            tmdbMovie.getPopularity(),
-                            "movie"
-                        );
-
+                        // 이미 존재하는 TmdbMovieDetail인지 확인
+                        Optional<TmdbMovieDetail> existingTmdbMovie = tmdbMovieDetailRepository.findByTmdbId(tmdbId);
+                        
+                        TmdbMovieDetail tmdbMovieDetail;
+                        boolean isNewMovie = false;
+                        
+                        if (existingTmdbMovie.isPresent()) {
+                            // 이미 존재하는 경우 해당 엔티티 사용
+                            tmdbMovieDetail = existingTmdbMovie.get();
+                            log.info("기존 TMDB 영화 발견: KOFIC[{}] -> TMDB[{}] (ID: {})", 
+                                    movieName, tmdbMovieDetail.getTitle(), tmdbId);
+                        } else {
+                            // 새로운 TmdbMovieDetail 엔티티 생성
+                            tmdbMovieDetail = createTmdbMovieDetailFromSearch(movieResponse);
+                            isNewMovie = true;
+                            log.info("새로운 TMDB 영화 생성: KOFIC[{}] -> TMDB[{}] (ID: {})", 
+                                    movieName, tmdbMovieDetail.getTitle(), tmdbId);
+                        }
+                        
+                        // 처리된 데이터 추가
                         processedDataList.add(new KoficTmdbProcessedData(
-                            mappingDto.getKoficMovie(),
+                            koficMovie,
                             tmdbMovieDetail,
-                            false
+                            !isNewMovie // 기존 영화면 true, 새 영화면 false
                         ));
                         
-                        log.info("새로운 TMDB 영화 생성: KOFIC={}, TMDB ID={}", 
-                                mappingDto.getKoficMovie().getName(), tmdbMovie.getId());
+                    } else {
+                        log.warn("TMDB 검색 결과 없음: {}", movieName);
                     }
+                    
                 } catch (Exception e) {
                     log.error("KOFIC-TMDB 매핑 처리 중 오류 발생: KOFIC={}, 오류={}", 
-                            mappingDto.getKoficMovie().getName(), e.getMessage(), e);
+                            mappingDto.getMovieName(), e.getMessage(), e);
                 }
             }
 
@@ -946,6 +967,73 @@ public class TmdbBatchProcessor {
                     koficTmdbMappingList.size(), processedDataList.size());
 
             return processedDataList.isEmpty() ? null : processedDataList;
+        };
+    }
+    
+    /**
+     * MovieResponseDto로부터 TmdbMovieDetail 엔티티 생성
+     */
+    private TmdbMovieDetail createTmdbMovieDetailFromSearch(MovieResponseDto movieResponse) {
+        Date releaseDate = null;
+        if (movieResponse.getReleaseDate() != null && !movieResponse.getReleaseDate().isEmpty()) {
+            try {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                releaseDate = dateFormat.parse(movieResponse.getReleaseDate());
+            } catch (ParseException e) {
+                log.warn("날짜 파싱 오류: {}", movieResponse.getReleaseDate());
+            }
+        }
+
+        return new TmdbMovieDetail(
+            movieResponse.getAdult() != null ? movieResponse.getAdult() : false,
+            movieResponse.getId().longValue(),
+            movieResponse.getTitle(),
+            movieResponse.getOriginalTitle(),
+            movieResponse.getOriginalLanguage(),
+            movieResponse.getOverview(),
+            "Released", // 기본값 설정
+            releaseDate,
+            null, // runtime은 기본 검색 결과에 없음
+            movieResponse.getVideo(),
+            movieResponse.getVoteAverage(),
+            movieResponse.getVoteCount().longValue(),
+            movieResponse.getPopularity(),
+            "movie" // 기본값 설정
+        ).setGenreIds(movieResponse.getGenreIds());
+    }
+
+    /**
+     * 매핑된 영화들의 장르 매칭을 처리하는 Processor
+     */
+    public ItemProcessor<List<Long>, Map<Long, List<Long>>> mappedMovieGenreMatchProcessor() {
+        return movieIds -> {
+            if (movieIds == null || movieIds.isEmpty()) {
+                return null;
+            }
+
+            Map<Long, List<Long>> genreMatches = new HashMap<>();
+            
+            for (Long movieId : movieIds) {
+                try {
+                    // TmdbMovieDetail에서 genreIds 가져오기
+                    Optional<TmdbMovieDetail> movieOpt = tmdbMovieDetailRepository.findById(movieId);
+                    if (movieOpt.isPresent()) {
+                        TmdbMovieDetail movie = movieOpt.get();
+                        List<Integer> genreIds = movie.getGenreIds();
+                        
+                        if (genreIds != null && !genreIds.isEmpty()) {
+                            List<Long> longGenreIds = genreIds.stream()
+                                    .map(Integer::longValue)
+                                    .collect(Collectors.toList());
+                            genreMatches.put(movieId, longGenreIds);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("영화 ID {}의 장르 매칭 처리 중 오류: {}", movieId, e.getMessage());
+                }
+            }
+
+            return genreMatches.isEmpty() ? null : genreMatches;
         };
     }
 }

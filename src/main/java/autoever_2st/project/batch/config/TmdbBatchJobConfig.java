@@ -56,12 +56,13 @@ public class TmdbBatchJobConfig {
                 .incrementer(new RunIdIncrementer()) // 동일한 파라미터로 여러 번 실행 가능
                 .start(fetchGenreStep()) // 먼저 장르 정보 로드
                 .next(fetchOttPlatformStep()) // 그 다음 OTT 플랫폼 정보 로드
-                .next(fetchMovieDiscoverStep()) // 그 다음 영화 정보 로드 (Movie 엔티티도 함께 생성)
+                .next(fetchMovieDiscoverStep()) // 현재 상영중인 영화 정보 로드 (Movie 엔티티도 함께 생성)
+                .next(fetchMovieUpcomingStep()) // 개봉 예정 영화 정보 로드 (Movie 엔티티도 함께 생성)
                 .next(fetchProductCompanyStep()) // 제작사 정보 및 Runtime 업데이트
                 .next(fetchCompanyMovieMappingStep()) // 영화-제작사 매핑 관계 생성
-                .next(fetchMovieWatchProvidersStep()) // 그 다음 영화 OTT 제공자 정보 로드
-                .next(fetchMovieImagesStep()) // 그 다음 영화 이미지 정보 로드
-                .next(fetchMovieVideosStep()) // 그 다음 영화 비디오 정보 로드
+                .next(fetchMovieWatchProvidersStep()) // 영화 OTT 제공자 정보 로드
+                .next(fetchMovieImagesStep()) // 영화 이미지 정보 로드
+                .next(fetchMovieVideosStep()) // 영화 비디오 정보 로드
                 .next(fetchMovieCreditsStep()) // 영화 크레딧 정보 로드
                 .build();
     }
@@ -78,6 +79,20 @@ public class TmdbBatchJobConfig {
                 .writer(tmdbBatchWriter.tmdbMovieDetailAndMovieWriter()) // TmdbMovieDetail과 Movie를 함께 저장
                 .build();
     }
+
+    /**
+     * 개봉 예정 영화 데이터를 가져오는 Step
+     */
+    @Bean
+    public Step fetchMovieUpcomingStep() {
+        return new StepBuilder("fetchMovieUpcomingStep", jobRepository)
+                .<List<MovieResponseDto>, List<TmdbMovieDetail>>chunk(1, transactionManager)
+                .reader(tmdbBatchReader.parallelUpcomingMoviePageReader()) // 병렬 데이터 가져오기 사용
+                .processor(tmdbBatchProcessor.movieDetailListProcessor())
+                .writer(tmdbBatchWriter.tmdbMovieDetailAndMovieWriter()) // TmdbMovieDetail만 저장
+                .build();
+    }
+
     /**
      * 장르 정보를 가져오는 Step
      */

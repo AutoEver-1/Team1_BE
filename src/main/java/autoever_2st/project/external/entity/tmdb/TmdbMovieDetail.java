@@ -7,9 +7,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.BatchSize;
 
-import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "tmdb_movie_detail", 
@@ -69,28 +70,29 @@ public class TmdbMovieDetail extends TimeStamp {
     @OneToOne(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     private Movie movie;
 
-    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new HashSet<>();
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieImages> tmdbMovieImages = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieImages> tmdbMovieImages = new HashSet<>();
 
-    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieVideo> tmdbMovieVideo = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieVideo> tmdbMovieVideo = new HashSet<>();
 
-    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<MovieGenreMatch> movieGenreMatch = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<MovieGenreMatch> movieGenreMatch = new HashSet<>();
 
-    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieCast> tmdbMovieCast = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieCast> tmdbMovieCast = new HashSet<>();
 
-    @BatchSize(size = 30)
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieCrew> tmdbMovieCrew = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieCrew> tmdbMovieCrew = new HashSet<>();
 
     public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, Date releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
         this.isAdult = isAdult;

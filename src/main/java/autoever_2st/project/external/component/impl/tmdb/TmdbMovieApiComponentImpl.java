@@ -64,7 +64,7 @@ public class TmdbMovieApiComponentImpl extends TmdbApiComponentImpl {
 
     public SearchMovieWrapperDto getSearchMovieList(String name, Integer page) {
         try {
-            return restClient.get()
+            return originRestClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/search/movie")
                             .queryParam("api_key", getApiKey())
                             .queryParam("query", name)
@@ -134,6 +134,7 @@ public class TmdbMovieApiComponentImpl extends TmdbApiComponentImpl {
                             .queryParam("api_key", getApiKey())
                             .queryParam("page", page)
                             .queryParam("language", "ko-KR")
+                            .queryParam("region", "KR") // 한국 영화만 조회 (기본값: US)
                             .build())
                     .retrieve()
                     .body(UpComingMovieWrapperDto.class);

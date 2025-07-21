@@ -10,6 +10,9 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TmdbMovieCrewRepository extends JpaRepository<TmdbMovieCrew, Long> {
+
+    @Query("SELECT crew FROM TmdbMovieCrew crew JOIN FETCH crew.tmdbMovieDetail d JOIN FETCH crew.tmdbMember WHERE d.id IN :tmdbMovieDetailIds AND crew.job = :job")
+    List<TmdbMovieCrew> findAllByJobAndTmdbMovieDetailIds(String job, List<Long> tmdbMovieDetailIds );
     @Query("SELECT DISTINCT crew.tmdbMember.id FROM TmdbMovieCrew crew WHERE crew.tmdbMovieDetail.id = :tmdbId AND crew.job = 'Director'")
     List<Long> findDirectorIdsByTmdbId(@Param("tmdbId") Long tmdbId);
 }
