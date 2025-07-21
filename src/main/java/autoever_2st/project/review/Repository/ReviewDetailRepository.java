@@ -23,4 +23,11 @@ public interface ReviewDetailRepository extends JpaRepository<ReviewDetail, Long
     """)
     List<Long> findRecentMovieIdsByReviewIds(@Param("reviewIds") List<Long> reviewIds, Pageable pageable);
 
+
+    @Query("SELECT rd FROM ReviewDetail rd " +
+            "JOIN rd.review r " +
+            "WHERE r.member.id IN :followingIds AND rd.isBanned = false " +
+            "ORDER BY rd.createdAt DESC")
+    List<ReviewDetail> findAllByFollowingIdsOrderByCreatedAtDesc(@Param("followingIds") List<Long> followingIds);
+
 }

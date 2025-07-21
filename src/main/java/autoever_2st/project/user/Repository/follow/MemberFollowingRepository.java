@@ -2,6 +2,8 @@ package autoever_2st.project.user.Repository.follow;
 
 import autoever_2st.project.user.Entity.Follow.MemberFollowing;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,4 +19,7 @@ public interface MemberFollowingRepository extends JpaRepository<MemberFollowing
     boolean existsByMemberIdAndFollowingId(Long memberId, Long followingId);
     long countByMemberId(Long memberId);
     List<MemberFollowing> findAllByMemberId(Long memberId);
+
+    @Query("SELECT mf.following.id FROM MemberFollowing mf WHERE mf.member.id = :memberId")
+    List<Long> findFollowingIdsByMemberId(@Param("memberId") Long memberId);
 }
