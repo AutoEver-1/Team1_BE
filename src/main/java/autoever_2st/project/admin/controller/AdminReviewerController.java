@@ -28,20 +28,20 @@ public class AdminReviewerController {
 //        AdminReviewerDto reviewer = reviewerService.findReviewerByNickname(nickname);
 //        return ApiResponse.success(reviewer, HttpStatus.OK.value());
 //    }
-
+    // 리뷰어 조회 (단일)
     @GetMapping("/single/admin")
     public ApiResponse<List<AdminReviewerDto>> getReviewersByNickname(@RequestParam("nickname") String nickname) {
         List<AdminReviewerDto> reviewers = reviewerService.findReviewersByNicknameLike(nickname);
         return ApiResponse.success(reviewers, HttpStatus.OK.value());
     }
-//
-//    // 리뷰어 조회 (전체)
-//    @GetMapping("/all/admin")
-//    public ApiResponse<AdminReviewerListResponseDto> getAllReviewers() {
-//        List<AdminReviewerDto> reviewerList = createMockAdminReviewerList(10);
-//        AdminReviewerListResponseDto responseDto = new AdminReviewerListResponseDto(reviewerList);
-//        return ApiResponse.success(responseDto, HttpStatus.OK.value());
-//    }
+
+    // 리뷰어 조회 (전체)
+    @GetMapping("/all/admin")
+    public ApiResponse<AdminReviewerListResponseDto> getAllReviewers() {
+        List<AdminReviewerDto> reviewerList = reviewerService.getAllReviewersOrderByFollowerAndNickname();
+        AdminReviewerListResponseDto responseDto = new AdminReviewerListResponseDto(reviewerList);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
 
     // 리뷰어 역할 수정
     @PatchMapping("/role/{memberId}")

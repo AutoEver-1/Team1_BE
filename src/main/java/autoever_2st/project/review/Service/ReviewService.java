@@ -1,5 +1,6 @@
 package autoever_2st.project.review.Service;
 
+import autoever_2st.project.admin.dto.AdminReviewerDto;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
 import autoever_2st.project.external.repository.tmdb.MovieGenreMatchRepository;
@@ -300,7 +301,6 @@ public class ReviewService {
                 }).sorted(Comparator.comparing(ReviewFromFollowingResponseDto::getReviewedDate).reversed()) // 최신순 정렬
                 .collect(Collectors.toList());
     }
-
 //    @Transactional(readOnly = true)
 //    public UserReviewListResponseDto getUserReviews(Long memberId) {
 //        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);

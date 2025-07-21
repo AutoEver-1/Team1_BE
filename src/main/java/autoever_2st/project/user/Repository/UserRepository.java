@@ -34,4 +34,15 @@ public interface UserRepository extends JpaRepository<Member, Long> {
     // 닉네임에 특정 문자열 포함하는 유저 리스트 조회
     List<Member> findByNicknameContaining(String nickname);
 
+    @Query("""
+        SELECT m, 
+               COUNT(DISTINCT mf.follower.id) AS followerCount, 
+               COUNT(DISTINCT r.id) AS reviewCount
+        FROM Member m
+        LEFT JOIN MemberFollower mf ON mf.member.id = m.id
+        LEFT JOIN Review r ON r.member = m
+        GROUP BY m
+        ORDER BY followerCount DESC, m.nickname ASC
+    """)
+    List<Object[]> findAllOrderByFollowerCountDescAndNicknameAsc();
 }

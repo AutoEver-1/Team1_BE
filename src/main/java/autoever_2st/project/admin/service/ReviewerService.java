@@ -61,4 +61,29 @@ public class ReviewerService {
             );
         }).collect(Collectors.toList());
     }
+
+    public List<AdminReviewerDto> getAllReviewersOrderByFollowerAndNickname() {
+        List<Object[]> result = userRepository.findAllOrderByFollowerCountDescAndNicknameAsc();
+
+        return result.stream()
+                .map(arr -> {
+                    Member member = (Member) arr[0];
+                    Long followerCount = (Long) arr[1];
+                    Long reviewCountLong = (Long) arr[2];
+
+                    Integer reviewCount = reviewCountLong != null ? reviewCountLong.intValue() : 0;
+
+                    return new AdminReviewerDto(
+                            member.getId(),
+                            member.getRole().getName().name(), // role enum 이름
+                            member.getNickname(),
+                            reviewCount,
+                            member.getProfileImgUrl(),
+                            followerCount != null ? followerCount : 0L,
+                            member.getIs_banned()
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
 }
