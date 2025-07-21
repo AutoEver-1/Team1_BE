@@ -25,12 +25,16 @@ public class OttPlatform extends TimeStamp {
     @Column(name = "name")
     private String name;
 
+    @Column(name = "logo_path")
+    private String logoPath;
+
     @OneToMany(mappedBy = "ottPlatform", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new ArrayList<>();
 
-    public OttPlatform(Long tmdbOttId, String name) {
+    public OttPlatform(Long tmdbOttId, String name, String logoPath) {
         this.tmdbOttId = tmdbOttId;
         this.name = name;
+        this.logoPath = logoPath;
     }
     public OttPlatform addTmdbMovieDetailOtt(TmdbMovieDetailOtt tmdbMovieDetailOtt){
         this.tmdbMovieDetailOtt.add(tmdbMovieDetailOtt);
