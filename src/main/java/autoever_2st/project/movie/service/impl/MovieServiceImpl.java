@@ -1,10 +1,12 @@
 package autoever_2st.project.movie.service.impl;
 
+import autoever_2st.project.movie.repository.CineverScoreRepository;
 import autoever_2st.project.external.entity.kofic.KoficBoxOffice;
 import autoever_2st.project.external.entity.kofic.KoficMovieDetail;
 import autoever_2st.project.external.entity.tmdb.*;
 import autoever_2st.project.external.repository.kofic.KoficMovieDetailRepository;
 import autoever_2st.project.external.repository.tmdb.*;
+import autoever_2st.project.movie.repository.MovieWishlistRepository;
 import autoever_2st.project.movie.component.RandomMovieGenerate;
 import autoever_2st.project.movie.dto.ActorDto;
 import autoever_2st.project.movie.dto.BoxOfficeMovieDto;

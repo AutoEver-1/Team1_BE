@@ -97,8 +97,11 @@ public class UserProfileController {
 
     //유저별 전체 영화 리뷰 조회
     @GetMapping("/{memberId}/reviews")
-    public ApiResponse<UserReviewListResponseDto> getUserReviews(@PathVariable Long memberId) {
-        UserReviewListResponseDto responseDto = reviewService.getUserReviews(memberId);
+    public ApiResponse<UserReviewListResponseDto> getUserReviews(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long memberId) {
+        Long viewerId = userDetails.getMember().getId();  // 로그인한 사용자 ID
+        UserReviewListResponseDto responseDto = reviewService.getUserReviews(memberId, viewerId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 

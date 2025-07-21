@@ -5,6 +5,7 @@ import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
 import autoever_2st.project.movie.repository.CineverScoreRepository;
 import autoever_2st.project.movie.entity.CineverScore;
 import autoever_2st.project.movie.repository.MovieRepository;
+import autoever_2st.project.review.Repository.ReviewLikeRepository;
 import org.springframework.transaction.annotation.Transactional;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.review.Entity.Review;
@@ -36,6 +37,7 @@ public class ReviewService {
     private final MovieRepository movieRepository;
     private final MemberGenrePreferenceRepository memberGenrePreferenceRepository;
     private final CineverScoreRepository cineverScoreRepository;
+    private final ReviewLikeRepository reviewLikeRepository;
 
 
     @Transactional
@@ -169,8 +171,12 @@ public class ReviewService {
 
         boolean isMine = loginMemberId != null && loginMemberId.equals(member.getId());
 
-        System.out.println("loginMemberId: " + loginMemberId);
-        System.out.println("memberId in review: " + review.getMember().getId());
+        // 로그인한 사용자가 좋아요를 눌렀는지 확인
+        boolean isLiked = false;
+        if (loginMemberId != null) {
+            isLiked = review.getLikes().stream()
+                    .anyMatch(like -> like.getMember().getId().equals(loginMemberId));
+        }
 
         // 장르 이름 리스트 뽑기
         List<String> genrePreferences = memberGenrePreferenceRepository.findByMember(member).stream()
@@ -187,14 +193,14 @@ public class ReviewService {
                 review.getLikes().size(),
                 isMine,
                 review.getReviewDetail().getCreatedAt().toString(),
-                genrePreferences
+                genrePreferences,
+                isLiked
         );
     }
 
-
     @Transactional(readOnly = true)
-    public UserReviewListResponseDto getUserReviews(Long memberId) {
-        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);
+    public UserReviewListResponseDto getUserReviews(Long targetMemberId, Long viewerId) {
+        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(targetMemberId);
 
         List<UserReviewDto> reviewDtos = reviews.stream()
                 .map(review -> {
@@ -203,6 +209,8 @@ public class ReviewService {
                     TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
 
                     ReviewDetail reviewDetail = review.getReviewDetail();
+
+                    boolean isLiked = reviewLikeRepository.existsByReviewIdAndMemberId(review.getId(), viewerId); // 💡추가된 부분
 
                     return new UserReviewDto(
                             movie.getId(),
@@ -213,13 +221,42 @@ public class ReviewService {
                             reviewDetail.getCreatedAt(),
                             reviewDetail.getContent(),
                             review.getLikes().size(),
-                            detail.getIsAdult()
+                            detail.getIsAdult(),
+                            isLiked // 💡추가된 필드
                     );
                 })
                 .collect(Collectors.toList());
 
         return new UserReviewListResponseDto(reviewDtos.size(), reviewDtos);
     }
+//    @Transactional(readOnly = true)
+//    public UserReviewListResponseDto getUserReviews(Long memberId) {
+//        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);
+//
+//        List<UserReviewDto> reviewDtos = reviews.stream()
+//                .map(review -> {
+//                    Movie movie = review.getMovie();
+//                    TmdbMovieDetail detail = movie.getTmdbMovieDetail();
+//                    TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+//
+//                    ReviewDetail reviewDetail = review.getReviewDetail();
+//
+//                    return new UserReviewDto(
+//                            movie.getId(),
+//                            detail.getTitle(),
+//                            image != null ? image.getBaseUrl() + image.getImageUrl() : null,
+//                            detail.getReleaseDate(),
+//                            reviewDetail.getRating(),
+//                            reviewDetail.getCreatedAt(),
+//                            reviewDetail.getContent(),
+//                            review.getLikes().size(),
+//                            detail.getIsAdult()
+//                    );
+//                })
+//                .collect(Collectors.toList());
+//
+//        return new UserReviewListResponseDto(reviewDtos.size(), reviewDtos);
+//    }
 
 
 }
