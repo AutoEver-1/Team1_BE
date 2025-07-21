@@ -5,10 +5,12 @@ import autoever_2st.project.user.Repository.UserRepository;
 import autoever_2st.project.user.filter.JWTFilter;
 import autoever_2st.project.user.filter.LoginFilter;
 import autoever_2st.project.user.jwt.JWTUtil;
+import autoever_2st.project.user.oauth.CustomOauth2UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -32,12 +34,14 @@ public class SecurityConfig {
     private final JWTUtil jwtUtil;
     private final RoleRepository roleRepository;  // 추가
     private final UserRepository userRepository;
+    private final CustomOauth2UserService customOAuth2UserService;
 
-    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil,  RoleRepository roleRepository, UserRepository userRepository) {
+    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil,  RoleRepository roleRepository, UserRepository userRepository, CustomOauth2UserService customOAuth2UserService) {
         this.configuration = configuration;
         this.jwtUtil = jwtUtil;
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
+        this.customOAuth2UserService = customOAuth2UserService;
     }
 
     @Bean
@@ -57,6 +61,7 @@ public class SecurityConfig {
         loginFilter.setFilterProcessesUrl("/api/login");
 
         httpSecurity
+                .cors(Customizer.withDefaults()) // ← 이거 꼭 넣기!
                 .csrf(AbstractHttpConfigurer::disable)
 //                .formLogin((auth) -> auth
 //                        .loginPage("/login")
@@ -72,12 +77,18 @@ public class SecurityConfig {
                         .anyRequest().permitAll()
                 )
 
-                .oauth2Login(auth -> auth
-                        .loginPage("/login")
-                        .defaultSuccessUrl("/oauth-login")
-                        .failureUrl("/login?error")
-                        .permitAll()
+                .oauth2Login((oauth2) -> oauth2
+                        .userInfoEndpoint((userInfoEndpointConfig) -> userInfoEndpointConfig
+                                .userService(customOAuth2UserService))
+                        .defaultSuccessUrl("http://cinever.store/api/swagger-ui/index.html#/", true)
                 );
+
+//                .oauth2Login(auth -> auth
+//                        .loginPage("/login")
+//                        .defaultSuccessUrl("/oauth-login")
+//                        .failureUrl("/login?error")
+//                        .permitAll()
+//                );
 
         //세션 설정
 //        httpSecurity
@@ -96,5 +107,19 @@ public class SecurityConfig {
         httpSecurity.logout((auth) -> auth.logoutUrl("/logout"));
 
         return httpSecurity.build();
+    }
+
+    @Bean
+    public CorsFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.addAllowedOrigin("https://cinever.store"); // 실서버용
+        config.addAllowedOrigin("http://localhost:5173"); // 로컬개발용 (필요 시)
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        config.setAllowCredentials(true); // 인증정보 쿠키 등 포함 여부
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return new CorsFilter(source);
     }
 }

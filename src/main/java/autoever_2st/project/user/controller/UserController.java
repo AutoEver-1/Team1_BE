@@ -74,13 +74,9 @@ public class UserController {
 //        return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());
 
 
-
-
-
-
     }
 
-    @GetMapping("/oauth/login")
+    @GetMapping("/oauth-login")
     public ApiResponse<LoginResponseDto> oauthLogin() {
         LoginResponseDto loginResponseDto = new LoginResponseDto(
                 2L,
