@@ -12,4 +12,8 @@ public interface MovieGenreMatchRepository extends JpaRepository<MovieGenreMatch
 
     @Query("SELECT mgm.movieGenre.id FROM MovieGenreMatch mgm WHERE mgm.tmdbMovieDetail.id = :tmdbId")
     List<Long> findGenreIdsByTmdbId(@Param("tmdbId") Long tmdbId);
+
+    @Query("SELECT mg.movieGenre.name FROM MovieGenreMatch mg WHERE mg.tmdbMovieDetail.id = :tmdbMovieDetailId")
+    List<String> findGenreNamesByTmdbMovieDetailId(@Param("tmdbMovieDetailId") Long tmdbMovieDetailId);
+
 }
