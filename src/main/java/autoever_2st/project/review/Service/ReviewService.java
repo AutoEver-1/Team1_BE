@@ -2,10 +2,13 @@ package autoever_2st.project.review.Service;
 
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
+import autoever_2st.project.external.repository.tmdb.MovieGenreMatchRepository;
 import autoever_2st.project.movie.repository.CineverScoreRepository;
 import autoever_2st.project.movie.entity.CineverScore;
 import autoever_2st.project.movie.repository.MovieRepository;
 import autoever_2st.project.review.Repository.ReviewLikeRepository;
+import autoever_2st.project.user.Repository.follow.MemberFollowingRepository;
+import autoever_2st.project.user.dto.ReviewFromFollowingResponseDto;
 import org.springframework.transaction.annotation.Transactional;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.review.Entity.Review;
@@ -24,9 +27,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +43,9 @@ public class ReviewService {
     private final MemberGenrePreferenceRepository memberGenrePreferenceRepository;
     private final CineverScoreRepository cineverScoreRepository;
     private final ReviewLikeRepository reviewLikeRepository;
+    private final MemberFollowingRepository memberFollowingRepository;
 
+    private final MovieGenreMatchRepository movieGenreMatchRepository;
 
     @Transactional
     public long createReview(Long movieId, ReviewRequestDto reviewRequestDto) {
@@ -184,6 +191,7 @@ public class ReviewService {
                 .collect(Collectors.toList());
 
         return new ReviewDto(
+                review.getId(),
                 member.getId(),
                 review.getReviewDetail().getContent(),
                 review.getReviewDetail().getRating(),
@@ -229,6 +237,71 @@ public class ReviewService {
 
         return new UserReviewListResponseDto(reviewDtos.size(), reviewDtos);
     }
+
+    //피드
+    @Transactional(readOnly = true)
+    public List<ReviewFromFollowingResponseDto> getFollowingReviews(Long memberId) {
+        List<Long> followingIds = memberFollowingRepository.findFollowingIdsByMemberId(memberId);
+
+        List<Review> reviews = reviewRepository.findByMemberIdIn(followingIds);
+
+        return reviews.stream()
+                .flatMap(review -> {
+//                    ReviewDetail detail = reviewDetailRepository.findByReviewId(review.getId())
+//                            .orElse(null);
+                    ReviewDetail detail = review.getReviewDetail();
+
+                    if (detail == null || detail.getIsBanned()) return Stream.empty();
+
+                    Member followingUser = review.getMember();
+                    Movie movie = review.getMovie();
+                    TmdbMovieDetail tmdbDetail = movie.getTmdbMovieDetail();
+
+                    // ✅ 포스터 이미지 URL 추출
+                    String posterPath = null;
+                    if (tmdbDetail != null && !tmdbDetail.getTmdbMovieImages().isEmpty()) {
+                        TmdbMovieImages posterImage = tmdbDetail.getTmdbMovieImages().get(0);
+                        posterPath = posterImage.getBaseUrl() + posterImage.getImageUrl();
+                    }
+
+                    // ✅ 장르 리스트 조회 (movieGenreMatch → movieGenre.name)
+                    List<String> genreList = movieGenreMatchRepository.findGenreNamesByTmdbMovieDetailId(tmdbDetail.getId());
+
+                    Long likeCount = reviewLikeRepository.countByReviewId(review.getId());
+                    boolean likedByMe = reviewLikeRepository.existsByReviewIdAndMemberId(review.getId(), memberId);
+
+                    return Stream.of(ReviewFromFollowingResponseDto.builder()
+                            .movieId(movie.getId())
+                            .title(tmdbDetail.getTitle())
+                            .posterPath(posterPath)
+                            .releaseDate(
+                                    tmdbDetail.getReleaseDate() != null ?
+                                            tmdbDetail.getReleaseDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate() :
+                                            null
+                            )
+                            .averageScore(tmdbDetail.getVoteAverage())
+                            .isAdult(tmdbDetail.getIsAdult())
+                            .movieGenre(genreList)
+
+                            .followingRole(followingUser.getRole().getName().name())
+                            .followingProfilePath(followingUser.getProfileImgUrl())
+                            .followingNickname(followingUser.getNickname())
+                            .followingMemId(followingUser.getId())
+
+                            .rating(detail.getRating())
+                            .reviewedDate(
+                                    detail.getCreatedAt() != null
+                                            ? detail.getCreatedAt().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+                                            : null
+                            )
+                            .context(detail.getContent())
+                            .likeCount(likeCount)
+                            .likeByMe(likedByMe)
+                            .build());
+                }).sorted(Comparator.comparing(ReviewFromFollowingResponseDto::getReviewedDate).reversed()) // 최신순 정렬
+                .collect(Collectors.toList());
+    }
+
 //    @Transactional(readOnly = true)
 //    public UserReviewListResponseDto getUserReviews(Long memberId) {
 //        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);

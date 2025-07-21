@@ -7,16 +7,16 @@ import autoever_2st.project.review.dto.ReviewDto;
 import autoever_2st.project.review.dto.request.ReviewRequestDto;
 import autoever_2st.project.review.dto.response.ReviewListResponseDto;
 import autoever_2st.project.user.Service.CustomUserDetails;
+import autoever_2st.project.user.dto.ReviewFromFollowingResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 @RequiredArgsConstructor
 @RestController
@@ -26,11 +26,24 @@ public class ReviewController {
     private final ReviewService reviewService;
     private final ReviewLikeService reviewLikeService;
 
+    // 팔로우 피드
+    @GetMapping("/following/reviews")
+    public ResponseEntity<Map<String, Object>> getReviewsFromFollowing(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        Long memberId = userDetails.getMember().getId();
+        List<ReviewFromFollowingResponseDto> reviewList = reviewService.getFollowingReviews(memberId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("reviewList", reviewList);
+        return ResponseEntity.ok(response);
+    }
+
+
     // 영화 리뷰 조회
     @GetMapping("/movie/{movieId}")
-    public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId,   @AuthenticationPrincipal CustomUserDetails userDetails){
+    public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId, @AuthenticationPrincipal CustomUserDetails userDetails){
         Long loginMemberId = userDetails.getMember().getId();
         List<ReviewDto> reviewList = reviewService.getReviewsByMovieId(movieId, loginMemberId);
+
         return ApiResponse.success(new ReviewListResponseDto(reviewList), HttpStatus.OK.value());
     }
 
