@@ -35,6 +35,23 @@ public interface TmdbMovieImageRepository extends JpaRepository<TmdbMovieImages,
             @Param("imageType") ImageType imageType
     );
 
-    @Query("SELECT m FROM TmdbMovieImages m JOIN FETCH m.tmdbMovieDetail d WHERE d.id IN :tmdbMovieDetailIds AND m.iso6391 = 'en' AND m.imageType = 'POSTER'")
+    @Query("SELECT m FROM TmdbMovieImages m JOIN FETCH m.tmdbMovieDetail d WHERE d.id IN :tmdbMovieDetailIds AND m.iso6391 = 'en' AND m.imageType = 'POSTER' AND m.imageUrl IS NOT NULL")
     List<TmdbMovieImages> findAllByIso6391AndTmdbMovieDetailIds(@Param("tmdbMovieDetailIds") List<Long> tmdbMovieDetailIds);
+
+    @Query(nativeQuery = true, value = """
+    SELECT DISTINCT movie_detail_id, base_url, image_url
+    FROM (
+        SELECT mi.tmdb_movie_detail_id as movie_detail_id, 
+               mi.base_url, 
+               mi.image_url,
+               ROW_NUMBER() OVER (PARTITION BY mi.tmdb_movie_detail_id ORDER BY mi.id) as rn
+        FROM tmdb_movie_images mi
+        WHERE mi.tmdb_movie_detail_id IN (:movieDetailIds)
+          AND mi.image_type = 'POSTER'
+          AND mi.iso_639_1 = 'en'
+          AND mi.ratio BETWEEN 0.0 AND 1.0
+    ) ranked
+    WHERE rn = 1
+    """)
+    List<Object[]> findPostersByMovieDetailIds(@Param("movieDetailIds") List<Long> movieDetailIds);
 }
