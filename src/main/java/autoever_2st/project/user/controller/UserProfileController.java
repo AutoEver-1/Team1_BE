@@ -13,12 +13,14 @@ import autoever_2st.project.user.Service.UserProfileService;
 import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
+import autoever_2st.project.user.dto.request.UserUpdateRequestDto;
 import autoever_2st.project.user.dto.response.UserProfileDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -101,6 +103,20 @@ public class UserProfileController {
         Long viewerId = userDetails.getMember().getId();  // 로그인한 사용자 ID
         UserReviewListResponseDto responseDto = reviewService.getUserReviews(memberId, viewerId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    @PatchMapping("/{memberId}")
+    public ApiResponse<Void> updateUser(
+            @PathVariable Long memberId,
+            @RequestBody UserUpdateRequestDto request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (!memberId.equals(userDetails.getMember().getId())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "본인만 정보를 수정할 수 있습니다.");
+        }
+
+        userProfileService.updateUserInfo(memberId, request);
+        return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // Helper method to create mock user profile

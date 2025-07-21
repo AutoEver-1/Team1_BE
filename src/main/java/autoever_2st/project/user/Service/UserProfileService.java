@@ -14,6 +14,7 @@ import autoever_2st.project.user.Repository.follow.MemberFollowerRepository;
 import autoever_2st.project.user.Repository.follow.MemberFollowingRepository;
 import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
+import autoever_2st.project.user.dto.request.UserUpdateRequestDto;
 import autoever_2st.project.user.dto.response.UserProfileDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -125,5 +126,22 @@ public class UserProfileService {
                 preferenceGenre,
                 wishList
         );
+    }
+
+
+    @Transactional
+    public void updateUserInfo(Long memberId, UserUpdateRequestDto request) {
+        Member member = userRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+
+        if (request.getNickname() != null) {
+            member.setNickname(request.getNickname());
+        }
+
+        if (request.getProfilePath() != null) {
+            member.setProfile_img_url(request.getProfilePath());
+        }
+
+        // 변경감지에 의해 JPA가 자동 업데이트
     }
 }
