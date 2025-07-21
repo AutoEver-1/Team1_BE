@@ -1,10 +1,9 @@
 package autoever_2st.project.movie.service;
 
-import autoever_2st.project.movie.dto.ActorDto;
-import autoever_2st.project.movie.dto.BoxOfficeMovieDto;
-import autoever_2st.project.movie.dto.DirectorDto;
-import autoever_2st.project.movie.dto.MovieDto;
+import autoever_2st.project.external.dto.tmdb.response.movie.GenreDto;
+import autoever_2st.project.movie.dto.*;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
+import autoever_2st.project.movie.dto.response.OttMovieListResponseDto;
 import autoever_2st.project.reviewer.dto.ReviewerDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,4 +31,25 @@ public interface MovieService {
 
         public MovieListResponseDto getDislikedMovies(Long memberId);
 
+        public MovieDetailDto getMovieDetail(Long movieId, Long memberId);
+
+//        public OttMovieListResponseDto getOttMovieList();
+//
+//        public ExpectedReleaseMovieListDto getExpectedReleaseMovies();
+//
+//        public RecentlyReleaseMovieListDto getRecentlyReleaseMovies();
+
+        public OttMovieListResponseDto getExpectedOttMovieList();
+
+        public OttMovieListResponseDto getRecentlyOttMovieList();
+
+        public List<GenreDto> getGenreList();
+
+        public MovieListResponseDto getHundredMoviesByGenre(Long genreId);
+
+        public Page<MovieDto> getLatestMovies(Pageable pageable);
+
+        public Page<MovieDto> getPopularMovies(Pageable pageable);
+
+        public Page<MovieDto> getTopRatedMovies(Pageable pageable);
 }
