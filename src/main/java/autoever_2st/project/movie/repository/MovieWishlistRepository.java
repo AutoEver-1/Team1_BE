@@ -1,5 +1,6 @@
 package autoever_2st.project.movie.repository;
 
+import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.movie.entity.MovieWishlist;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -22,5 +23,7 @@ public interface MovieWishlistRepository extends JpaRepository<MovieWishlist, Lo
 
     //특정 회원(memberId)이 특정 영화(movieId)를 찜한 기록을 찾기 위함
     Optional<MovieWishlist> findByMemberIdAndMovieId(Long memberId, Long movieId);
+
+    Integer countByMovie(Movie movie);
 
 }
