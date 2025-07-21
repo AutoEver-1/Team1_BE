@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -49,6 +48,8 @@ public class AdminReviewerController {
             @PathVariable Long memberId,
             @RequestBody ReviewerRoleUpdateRequestDto requestDto) {
         // Mock implementation
+        // return ApiResponse.success(null, HttpStatus.OK.value());
+        reviewerService.updateReviewerRole(memberId, requestDto.getRole());
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -56,6 +57,8 @@ public class AdminReviewerController {
     @PatchMapping("/role/multi")
     public ApiResponse<Void> updateMultiReviewerRole(
             @RequestBody ReviewerMultiRoleUpdateRequestDto requestDto) {
+
+        reviewerService.updateMultiReviewerRole(requestDto);  // 서비스 호출
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
