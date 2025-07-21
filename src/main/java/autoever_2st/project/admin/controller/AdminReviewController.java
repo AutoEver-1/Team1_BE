@@ -9,6 +9,8 @@ import autoever_2st.project.admin.dto.response.AdminReviewListResponseDto;
 import autoever_2st.project.admin.dto.stats.ReviewStatsDto;
 import autoever_2st.project.admin.dto.stats.TotalReviewStatsDto;
 import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.review.Service.ReviewService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,22 +20,18 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/review")
+@RequiredArgsConstructor
 public class AdminReviewController {
+
+    private final ReviewService reviewService;
 
     // 리뷰 검색 및 전체 조회
     @GetMapping("/admin")
     public ApiResponse<AdminReviewListResponseDto> getReviews(
             @RequestParam(required = false) String searchType,
-            @RequestParam(required = false) String content) {
-
-        List<AdminReviewItemDto> reviewList;
-
-        if (searchType != null && content != null && !content.isEmpty()) {
-            reviewList = createMockAdminReviewList(5);
-        } else {
-            reviewList = createMockAdminReviewList(10);
-        }
-
+            @RequestParam(required = false) String content
+    ) {
+        List<AdminReviewItemDto> reviewList = reviewService.getReviews(searchType, content);
         AdminReviewListResponseDto responseDto = new AdminReviewListResponseDto(reviewList);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
@@ -43,6 +41,7 @@ public class AdminReviewController {
     public ApiResponse<Void> blockReview(
             @PathVariable Long reviewId,
             @RequestBody ReviewBlockRequestDto requestDto) {
+        reviewService.updateReviewBanStatus(reviewId, requestDto.getIsBanned());
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -50,6 +49,7 @@ public class AdminReviewController {
     @PatchMapping("/block/multi")
     public ApiResponse<Void> blockMultiReview(
             @RequestBody ReviewMultiBlockRequestDto requestDto) {
+        reviewService.updateMultiReviewBanStatus(requestDto);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -58,6 +58,7 @@ public class AdminReviewController {
     public ApiResponse<Void> unblockReview(
             @PathVariable Long reviewId,
             @RequestBody ReviewBlockRequestDto requestDto) {
+        reviewService.updateReviewBanStatus(reviewId, requestDto.getIsBanned());
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -65,34 +66,36 @@ public class AdminReviewController {
     @PatchMapping("/unblock/multi")
     public ApiResponse<Void> unblockMultiReview(
             @RequestBody ReviewMultiBlockRequestDto requestDto) {
+        reviewService.updateMultiReviewBanStatus(requestDto);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
-    // Helper method to create mock admin review list
-    private List<AdminReviewItemDto> createMockAdminReviewList(int count) {
-        List<AdminReviewItemDto> reviewList = new ArrayList<>();
 
-        for (int i = 1; i <= count; i++) {
-            AdminMovieDto movie = new AdminMovieDto(
-                    (long) i,
-                    "Movie Title " + i,
-                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg"
-            );
-
-            AdminReviewDto review = new AdminReviewDto(
-                    (long) i,
-                    "Reviewer " + i,
-                    4.0 + (i * 0.5) % 1.0,
-                    i % 5 == 0,
-                    "정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good"
-            );
-
-            AdminReviewItemDto reviewItem = new AdminReviewItemDto(movie, review);
-            reviewList.add(reviewItem);
-        }
-
-        return reviewList;
-    }
+//    // Helper method to create mock admin review list
+//    private List<AdminReviewItemDto> createMockAdminReviewList(int count) {
+//        List<AdminReviewItemDto> reviewList = new ArrayList<>();
+//
+//        for (int i = 1; i <= count; i++) {
+//            AdminMovieDto movie = new AdminMovieDto(
+//                    (long) i,
+//                    "Movie Title " + i,
+//                    "http://image.tmdb.org/t/p/original/wqfu3bPLJaEWJVk3QOm0rKhxf1A.jpg"
+//            );
+//
+////            AdminReviewDto review = new AdminReviewDto(
+////                    (long) i,
+////                    "Reviewer " + i,
+////                    4.0 + (i * 0.5) % 1.0,
+////                    i % 5 == 0,
+////                    "정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good 정말 좋아요 very good"
+////            );
+//
+//            AdminReviewItemDto reviewItem = new AdminReviewItemDto(movie, review);
+//            reviewList.add(reviewItem);
+//        }
+//
+//        return reviewList;
+//    }
 
     @GetMapping("/admin/stats/trend")
     public ResponseEntity<ReviewStatsDto> getReviewStats(@RequestParam(required = false, defaultValue = "month") String dateType) {

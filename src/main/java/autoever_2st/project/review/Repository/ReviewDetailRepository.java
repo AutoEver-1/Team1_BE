@@ -30,4 +30,6 @@ public interface ReviewDetailRepository extends JpaRepository<ReviewDetail, Long
             "ORDER BY rd.createdAt DESC")
     List<ReviewDetail> findAllByFollowingIdsOrderByCreatedAtDesc(@Param("followingIds") List<Long> followingIds);
 
+
+    Optional<ReviewDetail> findByReviewId(Long reviewId);
 }
