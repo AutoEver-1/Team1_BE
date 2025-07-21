@@ -214,7 +214,8 @@ public class ReviewService {
                 .map(review -> {
                     Movie movie = review.getMovie();
                     TmdbMovieDetail detail = movie.getTmdbMovieDetail();
-                    TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+                    TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : 
+                        detail.getTmdbMovieImages().stream().findFirst().orElse(null);
 
                     ReviewDetail reviewDetail = review.getReviewDetail();
 
@@ -258,11 +259,12 @@ public class ReviewService {
                     TmdbMovieDetail tmdbDetail = movie.getTmdbMovieDetail();
 
                     // ✅ 포스터 이미지 URL 추출
-                    String posterPath = null;
-                    if (tmdbDetail != null && !tmdbDetail.getTmdbMovieImages().isEmpty()) {
-                        TmdbMovieImages posterImage = tmdbDetail.getTmdbMovieImages().get(0);
-                        posterPath = posterImage.getBaseUrl() + posterImage.getImageUrl();
-                    }
+                    String posterPath = tmdbDetail != null && !tmdbDetail.getTmdbMovieImages().isEmpty()
+                            ? tmdbDetail.getTmdbMovieImages().stream()
+                            .findFirst()
+                            .map(image -> image.getBaseUrl() + image.getImageUrl())
+                            .orElse(null)
+                            : null;
 
                     // ✅ 장르 리스트 조회 (movieGenreMatch → movieGenre.name)
                     List<String> genreList = movieGenreMatchRepository.findGenreNamesByTmdbMovieDetailId(tmdbDetail.getId());
