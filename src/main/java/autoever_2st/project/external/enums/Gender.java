@@ -4,7 +4,7 @@ import lombok.Getter;
 
 @Getter
 public enum Gender {
-    UNKNOWN(0, "알수없음", "UNKNOWN"), FEMALE(1, "여자", "FEMALE"), MALE(2, "남자", "MALE");
+    UNKNOWN(0, "알수없음", "UNKNOWN"), MALE(1, "남자", "MALE"), FEMALE(2, "여자", "FEMALE");
 
     private Integer genderValue;
     private String genderKrString;
