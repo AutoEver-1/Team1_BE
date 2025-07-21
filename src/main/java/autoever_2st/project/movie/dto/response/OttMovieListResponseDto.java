@@ -12,29 +12,39 @@ import java.util.List;
 public class OttMovieListResponseDto {
 
     @JsonProperty("ottList")
-    private List<autoever_2st.project.movie.dto.OttResponseDto> ottList;
+    private List<OttResponseDto> ottList;
 
     @JsonProperty("netflixMovieList")
-    private List<autoever_2st.project.movie.dto.NetflixMovieListResponseDto> netflixMovieList;
+    private List<NetflixMovieListResponseDto> netflixMovieList;
 
     @JsonProperty("watchaMovieList")
-    private List<autoever_2st.project.movie.dto.WatchaMovieListResponseDto> watchaMovieList;
+    private List<WatchaMovieListResponseDto> watchaMovieList;
 
     @JsonProperty("disneyPlusMovieList")
-    private List<autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto> disneyPlusMovieList;
+    private List<DisneyPlusMovieListResponseDto> disneyPlusMovieList;
 
     @JsonProperty("waveMovieList")
-    private List<autoever_2st.project.movie.dto.WaveMovieListResponseDto> waveMovieList;
+    private List<WaveMovieListResponseDto> waveMovieList;
 
-    public OttMovieListResponseDto(List<autoever_2st.project.movie.dto.OttResponseDto> ottList, 
-                             List<autoever_2st.project.movie.dto.NetflixMovieListResponseDto> netflixMovieList, 
-                             List<autoever_2st.project.movie.dto.WatchaMovieListResponseDto> watchaMovieList, 
-                             List<autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto> disneyPlusMovieList, 
-                             List<autoever_2st.project.movie.dto.WaveMovieListResponseDto> waveMovieList) {
+    @JsonProperty("tvingMovieList")
+    private List<TvingMovieListResponseDto> tvingMovieList;
+
+    @JsonProperty("coupangPlayMovieList")
+    private List<CoupangPlayMovieListResponseDto> coupangPlayMovieList;
+
+    public OttMovieListResponseDto(List<OttResponseDto> ottList,
+                             List<NetflixMovieListResponseDto> netflixMovieList,
+                             List<WatchaMovieListResponseDto> watchaMovieList,
+                             List<DisneyPlusMovieListResponseDto> disneyPlusMovieList,
+                             List<WaveMovieListResponseDto> waveMovieList,
+                             List<TvingMovieListResponseDto> tvingMovieList,
+                             List<CoupangPlayMovieListResponseDto> coupangPlayMovieList) {
         this.ottList = ottList;
         this.netflixMovieList = netflixMovieList;
         this.watchaMovieList = watchaMovieList;
         this.disneyPlusMovieList = disneyPlusMovieList;
         this.waveMovieList = waveMovieList;
+        this.tvingMovieList = tvingMovieList;
+        this.coupangPlayMovieList = coupangPlayMovieList;
     }
 }
