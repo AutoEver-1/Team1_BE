@@ -21,7 +21,7 @@ public class AdminReviewerController {
 
     private final ReviewerService reviewerService;
 
-//    // 리뷰어 조회 (단일)
+//    // 리뷰어 조회 (단일) - 정확하게 입력 ver.
 //    @GetMapping("/single/admin")
 //    public ApiResponse<AdminReviewerDto> getSingleReviewer(@RequestParam("nickname") String nickname) {
 //        AdminReviewerDto reviewer = reviewerService.findReviewerByNickname(nickname);
@@ -47,8 +47,6 @@ public class AdminReviewerController {
     public ApiResponse<Void> updateReviewerRole(
             @PathVariable Long memberId,
             @RequestBody ReviewerRoleUpdateRequestDto requestDto) {
-        // Mock implementation
-        // return ApiResponse.success(null, HttpStatus.OK.value());
         reviewerService.updateReviewerRole(memberId, requestDto.getRole());
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
@@ -57,7 +55,6 @@ public class AdminReviewerController {
     @PatchMapping("/role/multi")
     public ApiResponse<Void> updateMultiReviewerRole(
             @RequestBody ReviewerMultiRoleUpdateRequestDto requestDto) {
-
         reviewerService.updateMultiReviewerRole(requestDto);  // 서비스 호출
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
@@ -67,6 +64,7 @@ public class AdminReviewerController {
     public ApiResponse<Void> blockReviewer(
             @PathVariable Long memberId,
             @RequestBody ReviewerBlockRequestDto requestDto) {
+        reviewerService.blockReviewer(memberId, requestDto.getIsBanned());
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -74,6 +72,7 @@ public class AdminReviewerController {
     @PatchMapping("/block/multi")
     public ApiResponse<Void> blockMultiReviewer(
             @RequestBody ReviewerMultiBlockRequestDto requestDto) {
+        reviewerService.blockMultiReviewer(requestDto);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -82,6 +81,7 @@ public class AdminReviewerController {
     public ApiResponse<Void> unblockReviewer(
             @PathVariable Long memberId,
             @RequestBody ReviewerBlockRequestDto requestDto) {
+        reviewerService.unblockReviewer(memberId, requestDto.getIsBanned());
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
@@ -89,8 +89,10 @@ public class AdminReviewerController {
     @PatchMapping("/unblock/multi")
     public ApiResponse<Void> unblockMultiReviewer(
             @RequestBody ReviewerMultiBlockRequestDto requestDto) {
+        reviewerService.unblockMultiReviewer(requestDto);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
+
 //
 //    // Helper method to create a mock admin reviewer
 //    private AdminReviewerDto createMockAdminReviewer(Long memberId) {

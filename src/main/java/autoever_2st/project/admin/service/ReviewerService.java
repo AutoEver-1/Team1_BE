@@ -2,6 +2,7 @@ package autoever_2st.project.admin.service;
 
 
 import autoever_2st.project.admin.dto.AdminReviewerDto;
+import autoever_2st.project.admin.dto.request.ReviewerMultiBlockRequestDto;
 import autoever_2st.project.admin.dto.request.ReviewerMultiRoleUpdateRequestDto;
 import autoever_2st.project.admin.dto.request.ReviewerRoleUpdateRequestDto;
 import autoever_2st.project.exception.exception_class.business.DataNotFoundException;
@@ -139,5 +140,60 @@ public class ReviewerService {
             userRepository.save(member);
         }
     }
+
+    //단일 차단
+    @Transactional
+    public void blockReviewer(Long memberId, Boolean isBanned) {
+        Member member = userRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
+
+        member.setIs_banned(isBanned);
+
+        userRepository.save(member); // 저장
+    }
+
+    // 단일 차단 해제
+    @Transactional
+    public void unblockReviewer(Long memberId, Boolean isBanned) {
+        Member member = userRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다."));
+
+        member.setIs_banned(isBanned);
+
+        userRepository.save(member); // 저장
+    }
+
+    //다중 차단
+    @Transactional
+    public void blockMultiReviewer(ReviewerMultiBlockRequestDto requestDto) {
+        for (ReviewerMultiBlockRequestDto.ReviewerBlockItem item : requestDto.getReviewerList()) {
+            Long memberId = item.getMemberId();
+            Boolean isBanned = item.getIsBanned();
+
+            Member member = userRepository.findById(memberId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다. memberId=" + memberId));
+
+            member.setIs_banned(isBanned);
+            userRepository.save(member);
+        }
+    }
+
+    //다중 차단 풀기
+    @Transactional
+    public void unblockMultiReviewer(ReviewerMultiBlockRequestDto requestDto) {
+        for (ReviewerMultiBlockRequestDto.ReviewerBlockItem item : requestDto.getReviewerList()) {
+            Long memberId = item.getMemberId();
+            Boolean isBanned = item.getIsBanned();
+
+            Member member = userRepository.findById(memberId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 회원이 존재하지 않습니다. memberId=" + memberId));
+
+            member.setIs_banned(isBanned);
+            userRepository.save(member);
+        }
+    }
+
+
+
 
 }
