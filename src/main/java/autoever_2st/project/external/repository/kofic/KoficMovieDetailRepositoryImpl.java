@@ -3,8 +3,8 @@ package autoever_2st.project.external.repository.kofic;
 import autoever_2st.project.external.entity.kofic.KoficMovieDetail;
 import autoever_2st.project.external.entity.kofic.QKoficBoxOffice;
 import autoever_2st.project.external.entity.kofic.QKoficMovieDetail;
-import autoever_2st.project.external.entity.tmdb.QTmdbMovieDetail;
-import autoever_2st.project.external.entity.tmdb.QTmdbMovieImages;
+import autoever_2st.project.external.entity.tmdb.*;
+import autoever_2st.project.movie.entity.QMovie;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 
@@ -23,18 +23,65 @@ public class KoficMovieDetailRepositoryImpl implements KoficMovieDetailRepositor
         QKoficMovieDetail koficMovieDetail = QKoficMovieDetail.koficMovieDetail;
         QKoficBoxOffice koficBoxOffice = QKoficBoxOffice.koficBoxOffice;
         QTmdbMovieDetail tmdbMovieDetail = QTmdbMovieDetail.tmdbMovieDetail;
+        QMovie movie = QMovie.movie;
+        QMovieGenreMatch movieGenreMatch = QMovieGenreMatch.movieGenreMatch;
+        QTmdbMovieCrew tmdbMovieCrew = QTmdbMovieCrew.tmdbMovieCrew;
         QTmdbMovieImages tmdbMovieImages = QTmdbMovieImages.tmdbMovieImages;
+        QTmdbMovieVideo tmdbMovieVideo = QTmdbMovieVideo.tmdbMovieVideo;
+        QTmdbMember tmdbMember = QTmdbMember.tmdbMember;
+        QMovieGenre movieGenre = QMovieGenre.movieGenre;
 
-        // 첫 번째 쿼리: 기본 정보와 이미지만 가져옴 (하나의 컬렉션만 fetch join)
-        return queryFactory
+        // 먼저 기본 엔티티들을 조회 (Movie 테이블도 함께)
+        List<KoficMovieDetail> boxOfficeMovies = queryFactory
                 .selectDistinct(koficMovieDetail)
                 .from(koficMovieDetail)
                 .join(koficMovieDetail.koficBoxOffice, koficBoxOffice).fetchJoin()
                 .join(koficMovieDetail.tmdbMovieDetail, tmdbMovieDetail).fetchJoin()
-                .leftJoin(tmdbMovieDetail.tmdbMovieImages, tmdbMovieImages).fetchJoin()
-                .where(koficBoxOffice.isNotNull())
+                .leftJoin(tmdbMovieDetail.movie, movie).fetchJoin()
+                .where(koficMovieDetail.koficBoxOffice.id.isNotNull()
+                        .and(koficMovieDetail.tmdbMovieDetail.id.isNotNull()))
                 .orderBy(koficBoxOffice.boxOfficeRank.asc())
                 .limit(10) // 상위 10개만 가져옴
                 .fetch();
+
+        if (boxOfficeMovies.isEmpty()) {
+            return boxOfficeMovies;
+        }
+
+        // 조회된 TmdbMovieDetail ID 목록 추출
+        List<Long> tmdbMovieDetailIds = boxOfficeMovies.stream()
+                .map(kmd -> kmd.getTmdbMovieDetail().getId())
+                .toList();
+
+        // 장르 매칭 정보 조회 및 초기화
+        queryFactory
+                .selectFrom(movieGenreMatch)
+                .join(movieGenreMatch.movieGenre, movieGenre).fetchJoin()
+                .where(movieGenreMatch.tmdbMovieDetail.id.in(tmdbMovieDetailIds))
+                .fetch();
+
+        // 감독 정보 조회 및 초기화
+        queryFactory
+                .selectFrom(tmdbMovieCrew)
+                .join(tmdbMovieCrew.tmdbMember, tmdbMember).fetchJoin()
+                .where(tmdbMovieCrew.tmdbMovieDetail.id.in(tmdbMovieDetailIds)
+                        .and(tmdbMovieCrew.job.eq("Director")))
+                .fetch();
+
+        // 포스터 이미지 조회 및 초기화
+        queryFactory
+                .selectFrom(tmdbMovieImages)
+                .where(tmdbMovieImages.tmdbMovieDetail.id.in(tmdbMovieDetailIds)
+                        .and(tmdbMovieImages.imageType.eq(ImageType.POSTER)))
+                .fetch();
+
+        // 비디오 정보 조회 및 초기화
+        queryFactory
+                .selectFrom(tmdbMovieVideo)
+                .where(tmdbMovieVideo.tmdbMovieDetail.id.in(tmdbMovieDetailIds)
+                        .and(tmdbMovieVideo.videoType.in("Teaser", "Trailer")))
+                .fetch();
+
+        return boxOfficeMovies;
     }
 }
