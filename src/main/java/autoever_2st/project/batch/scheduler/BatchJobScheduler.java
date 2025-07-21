@@ -71,9 +71,36 @@ public class BatchJobScheduler {
     }
 
     public void runAllJobs() {
-        runTmdbMovieJob();
-        runKoficBoxOfficeJob();
-        runKoficTmdbMappingJob();
+        log.info("=== 전체 배치 작업 시작 ===");
+        
+        try {
+            // 1단계: KOFIC 박스오피스 데이터 적재
+            log.info("1단계: KOFIC 박스오피스 데이터 적재 시작");
+            runKoficBoxOfficeJob();
+            log.info("1단계: KOFIC 박스오피스 데이터 적재 완료");
+            
+            // 잠시 대기 (데이터베이스 트랜잭션 완료 보장)
+            Thread.sleep(5000);
+            
+            // 2단계: KOFIC-TMDB 매핑 작업 (KOFIC 영화명으로 TMDB 검색 및 기본 정보 저장)
+            log.info("2단계: KOFIC-TMDB 매핑 작업 시작");
+            runKoficTmdbMappingJob();
+            log.info("2단계: KOFIC-TMDB 매핑 작업 완료");
+            
+            // 잠시 대기 (데이터베이스 트랜잭션 완료 보장)
+            Thread.sleep(5000);
+            
+            // 3단계: TMDB 상세 데이터 수집 (장르, 이미지, 비디오, 크레딧 등)
+            log.info("3단계: TMDB 상세 데이터 수집 시작");
+            runTmdbMovieJob();
+            log.info("3단계: TMDB 상세 데이터 수집 완료");
+            
+            log.info("=== 전체 배치 작업 완료 ===");
+            
+        } catch (Exception e) {
+            log.error("배치 작업 중 오류 발생: {}", e.getMessage(), e);
+            throw new RuntimeException("배치 작업 실패", e);
+        }
     }
 
     public void runTmdbJobs() {
