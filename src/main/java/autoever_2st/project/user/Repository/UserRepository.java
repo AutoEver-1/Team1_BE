@@ -35,7 +35,7 @@ public interface UserRepository extends JpaRepository<Member, Long> {
     List<Member> findByNicknameContaining(String nickname);
 
     @Query("""
-        SELECT m, 
+        SELECT m,
                COUNT(DISTINCT mf.follower.id) AS followerCount, 
                COUNT(DISTINCT r.id) AS reviewCount
         FROM Member m
