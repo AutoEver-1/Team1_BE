@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -28,4 +29,20 @@ public interface UserRepository extends JpaRepository<Member, Long> {
     @Query("SELECT m FROM Member m WHERE m.name LIKE %:name%")
     Page<Member> findAllByNameContaining(@Param("name") String name, Pageable pageable);
 
+    Optional<Member> findByNickname(String nickname);
+
+    // 닉네임에 특정 문자열 포함하는 유저 리스트 조회
+    List<Member> findByNicknameContaining(String nickname);
+
+    @Query("""
+        SELECT m,
+               COUNT(DISTINCT mf.follower.id) AS followerCount, 
+               COUNT(DISTINCT r.id) AS reviewCount
+        FROM Member m
+        LEFT JOIN MemberFollower mf ON mf.member.id = m.id
+        LEFT JOIN Review r ON r.member = m
+        GROUP BY m
+        ORDER BY followerCount DESC, m.nickname ASC
+    """)
+    List<Object[]> findAllOrderByFollowerCountDescAndNicknameAsc();
 }
