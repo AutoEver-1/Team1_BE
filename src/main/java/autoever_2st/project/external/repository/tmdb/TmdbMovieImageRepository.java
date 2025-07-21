@@ -6,20 +6,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-
 import java.util.List;
 import java.util.Optional;
 
 public interface TmdbMovieImageRepository extends JpaRepository<TmdbMovieImages, Long> {
-    Optional<TmdbMovieImages> findFirstByTmdbMovieDetailId(Long tmdbMovieDetailId);
-
-    @Query("SELECT mi FROM TmdbMovieImages mi WHERE mi.tmdbMovieDetail.id = :tmdbId AND mi.imageType = POSTER")
-    Optional<TmdbMovieImages> findPosterByTmdbId(@Param("tmdbId") Long tmdbId);
-
-    Optional<TmdbMovieImages> findByTmdbMovieDetail_IdAndImageType(Long tmdbId, ImageType imageType);
-
     Optional<TmdbMovieImages> findFirstByTmdbMovieDetail_IdAndImageTypeOrderByIdAsc(Long tmdbId, ImageType imageType);
-
+    
+    Optional<TmdbMovieImages> findFirstByTmdbMovieDetail_IdAndImageTypeAndIso6391AndRatioBetweenOrderByIdAsc(
+            Long tmdbMovieDetailId, ImageType imageType, String iso6391, Double minRatio, Double maxRatio);
+    
+    List<TmdbMovieImages> findAllByTmdbMovieDetail_IdAndIso6391IsNull(Long tmdbMovieDetailId);
 
     @Query("""
     SELECT mi FROM TmdbMovieImages mi
@@ -38,6 +34,7 @@ public interface TmdbMovieImageRepository extends JpaRepository<TmdbMovieImages,
             @Param("tmdbId") Long tmdbId,
             @Param("imageType") ImageType imageType
     );
-    @Query("SELECT m FROM TmdbMovieImages m JOIN FETCH m.tmdbMovieDetail d WHERE d.id IN :tmdbMovieDetailIds AND m.iso6391 = 'en' AND m.imageType = 'POSTER' ")
+
+    @Query("SELECT m FROM TmdbMovieImages m JOIN FETCH m.tmdbMovieDetail d WHERE d.id IN :tmdbMovieDetailIds AND m.iso6391 = 'en' AND m.imageType = 'POSTER'")
     List<TmdbMovieImages> findAllByIso6391AndTmdbMovieDetailIds(@Param("tmdbMovieDetailIds") List<Long> tmdbMovieDetailIds);
 }
