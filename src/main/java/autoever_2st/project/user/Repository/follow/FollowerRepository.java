@@ -12,4 +12,5 @@ public interface FollowerRepository extends JpaRepository<Follower, Long> {
 
     Optional<Follower> findByMember_Id(Long memberId);
     Optional<Follower> findByMember(Member member);
+
 }

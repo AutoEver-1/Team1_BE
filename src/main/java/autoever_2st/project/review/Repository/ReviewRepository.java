@@ -69,4 +69,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     boolean existsByMemberAndMovie(Member member, Movie movie);
 
     List<Review> findByMemberIdIn(List<Long> memberIds);
+
+
+    int countByMemberId(Long memberId);
 }
