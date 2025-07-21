@@ -96,4 +96,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 //    @Query("SELECT r FROM Review r JOIN r.reviewDetail d WHERE d.content LIKE %:content% ORDER BY d.createdAt DESC")
 //    List<Review> findByReviewContentContainingOrderByCreatedAtDesc(@Param("content") String content);
 
+
+    int countByMemberId(Long memberId);
+
 }

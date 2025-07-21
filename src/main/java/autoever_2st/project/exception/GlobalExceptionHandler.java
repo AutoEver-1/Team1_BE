@@ -43,6 +43,7 @@ public class GlobalExceptionHandler {
      * 추가적인 커스텀 에러들 이곳에 작성
      * */
 
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Object>> handleRuntimeException(RuntimeException e){
         log.error("RuntimeException : {}", e.getMessage());

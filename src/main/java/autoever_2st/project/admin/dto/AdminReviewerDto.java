@@ -11,11 +11,11 @@ public class AdminReviewerDto {
     private String nickname;
     private Integer review_count;
     private String profile_img_url;
-    private Integer follower_cnt;
+    private Long follower_cnt;
     private Boolean isBanned;
 
     public AdminReviewerDto(Long memberId, String role, String nickname, Integer review_count, 
-                           String profile_img_url, Integer follower_cnt, Boolean isBanned) {
+                           String profile_img_url, Long follower_cnt, Boolean isBanned) {
         this.memberId = memberId;
         this.role = role;
         this.nickname = nickname;

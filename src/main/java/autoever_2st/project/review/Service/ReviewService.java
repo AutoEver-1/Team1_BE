@@ -1,9 +1,11 @@
 package autoever_2st.project.review.Service;
 
+
 import autoever_2st.project.admin.dto.AdminMovieDto;
 import autoever_2st.project.admin.dto.AdminReviewDto;
 import autoever_2st.project.admin.dto.AdminReviewItemDto;
 import autoever_2st.project.admin.dto.request.ReviewMultiBlockRequestDto;
+import autoever_2st.project.admin.dto.AdminReviewerDto;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
 import autoever_2st.project.external.repository.tmdb.MovieGenreMatchRepository;
@@ -306,6 +308,7 @@ public class ReviewService {
                 .collect(Collectors.toList());
     }
 
+
     @Transactional(readOnly = true)
     public List<AdminReviewItemDto> getReviews(String searchType, String content) {
         List<Review> reviews;
@@ -384,6 +387,34 @@ public class ReviewService {
         }
     }
 
+//    @Transactional(readOnly = true)
+//    public UserReviewListResponseDto getUserReviews(Long memberId) {
+//        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);
+//
+//        List<UserReviewDto> reviewDtos = reviews.stream()
+//                .map(review -> {
+//                    Movie movie = review.getMovie();
+//                    TmdbMovieDetail detail = movie.getTmdbMovieDetail();
+//                    TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+//
+//                    ReviewDetail reviewDetail = review.getReviewDetail();
+//
+//                    return new UserReviewDto(
+//                            movie.getId(),
+//                            detail.getTitle(),
+//                            image != null ? image.getBaseUrl() + image.getImageUrl() : null,
+//                            detail.getReleaseDate(),
+//                            reviewDetail.getRating(),
+//                            reviewDetail.getCreatedAt(),
+//                            reviewDetail.getContent(),
+//                            review.getLikes().size(),
+//                            detail.getIsAdult()
+//                    );
+//                })
+//                .collect(Collectors.toList());
+//
+//        return new UserReviewListResponseDto(reviewDtos.size(), reviewDtos);
+//    }
 
 
 }
