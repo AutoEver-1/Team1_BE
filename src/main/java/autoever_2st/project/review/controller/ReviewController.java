@@ -40,9 +40,10 @@ public class ReviewController {
 
     // 영화 리뷰 조회
     @GetMapping("/movie/{movieId}")
-    public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId,   @AuthenticationPrincipal CustomUserDetails userDetails){
+    public ApiResponse<ReviewListResponseDto> getMovieReviews(@PathVariable Long movieId, @AuthenticationPrincipal CustomUserDetails userDetails){
         Long loginMemberId = userDetails.getMember().getId();
         List<ReviewDto> reviewList = reviewService.getReviewsByMovieId(movieId, loginMemberId);
+
         return ApiResponse.success(new ReviewListResponseDto(reviewList), HttpStatus.OK.value());
     }
 

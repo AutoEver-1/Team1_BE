@@ -8,6 +8,7 @@ import java.util.List;
 @NoArgsConstructor
 @Getter
 public class ReviewDto {
+    private Long reviewId;  // 새로 추가한 필드
     private Long memberId;
     private String context;
     private Double rating;
@@ -20,9 +21,10 @@ public class ReviewDto {
     private List<String> genre_preference;
     private Boolean isLiked;
 
-    public ReviewDto(Long memberId, String context, Double rating, String nickname, 
+    public ReviewDto(Long reviewId, Long memberId, String context, Double rating, String nickname,
                     String profile_img_url, String role, Integer likeCount, Boolean isMine, 
                     String updatedAt, List<String> genre_preference, Boolean isLiked) {
+        this.reviewId = reviewId;
         this.memberId = memberId;
         this.context = context;
         this.rating = rating;

@@ -191,6 +191,7 @@ public class ReviewService {
                 .collect(Collectors.toList());
 
         return new ReviewDto(
+                review.getId(),
                 member.getId(),
                 review.getReviewDetail().getContent(),
                 review.getReviewDetail().getRating(),
