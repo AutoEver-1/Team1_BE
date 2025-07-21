@@ -62,6 +62,22 @@ public class TmdbBatchComponent {
         }
     }
 
+
+    /**
+     * 상영 예정중인 영화 목록을 가져옴.
+     * @param page 페이지 번호
+     * @return 영화 ID 목록
+     */
+    public List<MovieResponseDto> fetchMovieUpcoming(int page) {
+        try {
+            UpComingMovieWrapperDto upcomingMovies = tmdbMovieApiComponent.getUpComingMovieList(page);
+            return upcomingMovies.getResults();
+        } catch (Exception e) {
+            log.error("예정된 영화를 페이지에서 가져오는 중 오류가 발생했습니다 {}: {}", page, e.getMessage(), e);
+            return new ArrayList<>(); // 오류 발생 시 빈 리스트 반환
+        }
+    }
+
     /**
      * 인기 영화 목록을 가져옴.
      * @param page 페이지 번호
