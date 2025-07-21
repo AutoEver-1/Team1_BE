@@ -20,6 +20,7 @@ import java.util.List;
 
 /**
  * KOFIC 영화를 TMDB API로 검색하여 매핑하는 배치 작업 설정
+ * 매핑 작업만 수행하고 상세 데이터 수집은 별도 TmdbBatchJob에서 처리
  */
 @Slf4j
 @Configuration
@@ -34,19 +35,13 @@ public class KoficTmdbMappingBatchJobConfig {
 
     /**
      * KOFIC-TMDB 매핑 Job
-     * KOFIC 영화를 TMDB와 매핑하고 필요한 경우 전체 TMDB 데이터를 수집합니다.
+     * KOFIC 영화를 TMDB와 매핑만 수행합니다.
+     * 상세 데이터 수집은 별도 TmdbBatchJob에서 처리됩니다.
      */
     @Bean
     public Job koficTmdbMappingJob() {
         return new JobBuilder("koficTmdbMappingJob", jobRepository)
-                .start(koficTmdbMappingStep())
-                // TODO: 새로운 TMDB 영화들에 대해 전체 데이터 수집 단계들 추가
-                // .next(tmdbDetailDataCollectionStep())
-                // .next(tmdbGenreDataStep())
-                // .next(tmdbOttDataStep())
-                // .next(tmdbImageDataStep())
-                // .next(tmdbVideoDataStep())
-                // .next(tmdbCreditDataStep())
+                .start(koficTmdbMappingStep()) // KOFIC-TMDB 매핑만 수행
                 .build();
     }
 
@@ -60,6 +55,10 @@ public class KoficTmdbMappingBatchJobConfig {
                 .reader(tmdbBatchReader.koficTmdbMappingReader())
                 .processor(tmdbBatchProcessor.koficTmdbMappingProcessor())
                 .writer(tmdbBatchWriter.koficTmdbMappingWriter())
+                .allowStartIfComplete(true)
+                .faultTolerant()
+                .skipLimit(10)
+                .skip(Exception.class)
                 .build();
     }
 }
