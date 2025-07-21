@@ -18,10 +18,11 @@ public class ReviewDto {
     private Boolean isMine;
     private String updatedAt;
     private List<String> genre_preference;
+    private Boolean isLiked;
 
     public ReviewDto(Long memberId, String context, Double rating, String nickname, 
                     String profile_img_url, String role, Integer likeCount, Boolean isMine, 
-                    String updatedAt, List<String> genre_preference) {
+                    String updatedAt, List<String> genre_preference, Boolean isLiked) {
         this.memberId = memberId;
         this.context = context;
         this.rating = rating;
@@ -32,5 +33,6 @@ public class ReviewDto {
         this.isMine = isMine;
         this.updatedAt = updatedAt;
         this.genre_preference = genre_preference;
+        this.isLiked = isLiked;
     }
 }

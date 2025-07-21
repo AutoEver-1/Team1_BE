@@ -77,28 +77,28 @@ public class ReviewController {
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
-    private List<ReviewDto> createMockReviewList(Long movieId, int count) {
-        List<ReviewDto> reviewList = new ArrayList<>();
-        
-        for (int i = 1; i <= count; i++) {
-            List<String> genrePreferences = Arrays.asList("Action", "Drama", "Comedy");
-            
-            ReviewDto review = new ReviewDto(
-                    (long) i,
-                    "This is a review for movie " + movieId + ". Review number " + i,
-                    4.0 + (i * 0.5) % 1.0,
-                    "Reviewer " + i,
-                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
-                    i % 3 == 0 ? "CRITIC" : "USER",
-                    10 + i,
-                    i == 1,
-                    LocalDateTime.now().minusDays(i).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                    genrePreferences
-            );
-            
-            reviewList.add(review);
-        }
-        
-        return reviewList;
-    }
+//    private List<ReviewDto> createMockReviewList(Long movieId, int count) {
+//        List<ReviewDto> reviewList = new ArrayList<>();
+//
+//        for (int i = 1; i <= count; i++) {
+//            List<String> genrePreferences = Arrays.asList("Action", "Drama", "Comedy");
+//
+//            ReviewDto review = new ReviewDto(
+//                    (long) i,
+//                    "This is a review for movie " + movieId + ". Review number " + i,
+//                    4.0 + (i * 0.5) % 1.0,
+//                    "Reviewer " + i,
+//                    "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
+//                    i % 3 == 0 ? "CRITIC" : "USER",
+//                    10 + i,
+//                    i == 1,
+//                    LocalDateTime.now().minusDays(i).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+//                    genrePreferences
+//            );
+//
+//            reviewList.add(review);
+//        }
+//
+//        return reviewList;
+//    }
 }
