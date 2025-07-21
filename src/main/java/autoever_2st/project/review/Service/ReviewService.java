@@ -1,5 +1,10 @@
 package autoever_2st.project.review.Service;
 
+
+import autoever_2st.project.admin.dto.AdminMovieDto;
+import autoever_2st.project.admin.dto.AdminReviewDto;
+import autoever_2st.project.admin.dto.AdminReviewItemDto;
+import autoever_2st.project.admin.dto.request.ReviewMultiBlockRequestDto;
 import autoever_2st.project.admin.dto.AdminReviewerDto;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieDetail;
 import autoever_2st.project.external.entity.tmdb.TmdbMovieImages;
@@ -302,6 +307,86 @@ public class ReviewService {
                 }).sorted(Comparator.comparing(ReviewFromFollowingResponseDto::getReviewedDate).reversed()) // 최신순 정렬
                 .collect(Collectors.toList());
     }
+
+
+    @Transactional(readOnly = true)
+    public List<AdminReviewItemDto> getReviews(String searchType, String content) {
+        List<Review> reviews;
+
+        if (searchType != null && content != null && !content.trim().isEmpty()) {
+            switch (searchType.toLowerCase()) {
+                case "닉네임":
+                    reviews = reviewRepository.findByMember_NicknameContainingOrderByReviewDetail_CreatedAtDesc(content);
+                    break;
+                case "영화제목":
+                    reviews = reviewRepository.findByMovie_TmdbMovieDetail_TitleContainingOrderByReviewDetail_CreatedAtDesc(content);
+                    break;
+                case "내용":
+                    reviews = reviewRepository.findByReviewDetail_ContentContainingOrderByReviewDetail_CreatedAtDesc(content);
+                    break;
+                default:
+                    throw new IllegalArgumentException("지원하지 않는 searchType: " + searchType);
+            }
+        } else {
+            reviews = reviewRepository.findAllByOrderByReviewDetail_CreatedAtDesc();
+        }
+
+        return reviews.stream()
+                .map(this::convertToAdminReviewItemDto)
+                .collect(Collectors.toList());
+    }
+
+
+    @Transactional(readOnly = true)
+    private AdminReviewItemDto convertToAdminReviewItemDto(Review review) {
+        Movie movie = review.getMovie();
+        TmdbMovieDetail detail = movie.getTmdbMovieDetail();
+        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+
+        AdminMovieDto movieDto = new AdminMovieDto(
+                movie.getId(),
+                detail.getTitle(),
+                image != null ? image.getBaseUrl() + image.getImageUrl() : null
+        );
+
+        AdminReviewDto reviewDto = new AdminReviewDto(
+                review.getId(),
+                review.getMember().getId(),
+                review.getMember().getNickname(),
+                review.getReviewDetail().getRating(),
+                review.getReviewDetail().getIsBanned(),
+                review.getReviewDetail().getContent()
+        );
+
+        return new AdminReviewItemDto(movieDto, reviewDto);
+    }
+
+    @Transactional
+    public void updateReviewBanStatus(Long reviewId, Boolean isBanned) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 리뷰가 존재하지 않습니다."));
+
+        ReviewDetail detail = reviewDetailRepository.findByReview(review)
+                .orElseThrow(() -> new IllegalArgumentException("리뷰 디테일이 존재하지 않습니다."));
+
+        detail.setIsBanned(isBanned);  // ✅ true 또는 false 로 갱신
+        reviewDetailRepository.save(detail);
+    }
+
+    @Transactional
+    public void updateMultiReviewBanStatus(ReviewMultiBlockRequestDto requestDto) {
+        for (ReviewMultiBlockRequestDto.ReviewBlockItem item : requestDto.getReviewList()) {
+            Long reviewId = item.getReviewId();
+            Boolean isBanned = item.getIsBanned();
+
+            ReviewDetail detail = reviewDetailRepository.findByReviewId(reviewId)
+                    .orElseThrow(() -> new IllegalArgumentException("해당 리뷰를 찾을 수 없습니다. reviewId = " + reviewId));
+
+            detail.setBanned(isBanned);
+            reviewDetailRepository.save(detail);
+        }
+    }
+
 //    @Transactional(readOnly = true)
 //    public UserReviewListResponseDto getUserReviews(Long memberId) {
 //        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);

@@ -70,6 +70,33 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     List<Review> findByMemberIdIn(List<Long> memberIds);
 
+    // 전체 최신순
+    List<Review> findAllByOrderByReviewDetail_CreatedAtDesc();
+
+    // 검색 조건
+    List<Review> findByMember_NicknameContainingOrderByReviewDetail_CreatedAtDesc(String nickname);
+
+    List<Review> findByMovie_TmdbMovieDetail_TitleContainingOrderByReviewDetail_CreatedAtDesc(String title);
+
+    List<Review> findByReviewDetail_ContentContainingOrderByReviewDetail_CreatedAtDesc(String content);
+
+//    // 기본 전체 리뷰 (최신순)
+//    @Query("SELECT r FROM Review r JOIN FETCH r.reviewDetail d ORDER BY d.createdAt DESC")
+//    List<Review> findAllOrderByCreatedAtDesc();
+//
+//    // 닉네임으로 검색
+//    @Query("SELECT r FROM Review r JOIN r.member m JOIN r.reviewDetail d WHERE m.nickname LIKE %:nickname% ORDER BY d.createdAt DESC")
+//    List<Review> findByMemberNicknameContainingOrderByCreatedAtDesc(@Param("nickname") String nickname);
+//
+//    // 영화 제목으로 검색
+//    @Query("SELECT r FROM Review r JOIN r.movie m JOIN m.tmdbMovieDetail t JOIN r.reviewDetail d WHERE t.title LIKE %:title% ORDER BY d.createdAt DESC")
+//    List<Review> findByMovieTitleContainingOrderByCreatedAtDesc(@Param("title") String title);
+//
+//    // 리뷰 내용으로 검색
+//    @Query("SELECT r FROM Review r JOIN r.reviewDetail d WHERE d.content LIKE %:content% ORDER BY d.createdAt DESC")
+//    List<Review> findByReviewContentContainingOrderByCreatedAtDesc(@Param("content") String content);
+
 
     int countByMemberId(Long memberId);
+
 }
