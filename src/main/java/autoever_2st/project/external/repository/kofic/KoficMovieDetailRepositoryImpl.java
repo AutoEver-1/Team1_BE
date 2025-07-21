@@ -41,7 +41,6 @@ public class KoficMovieDetailRepositoryImpl implements KoficMovieDetailRepositor
                 .where(koficMovieDetail.koficBoxOffice.id.isNotNull()
                         .and(koficMovieDetail.tmdbMovieDetail.id.isNotNull()))
                 .orderBy(koficBoxOffice.boxOfficeRank.asc())
-                .limit(10) // 상위 10개만 가져옴
                 .fetch();
 
         if (boxOfficeMovies.isEmpty()) {
@@ -68,18 +67,22 @@ public class KoficMovieDetailRepositoryImpl implements KoficMovieDetailRepositor
                         .and(tmdbMovieCrew.job.eq("Director")))
                 .fetch();
 
-        // 포스터 이미지 조회 및 초기화
+        // 가로 이미지 조회 및 초기화 (ratio가 1~2 사이, iso_639_1이 'en'인 BACKDROP 이미지, 첫 번째 것만)
         queryFactory
                 .selectFrom(tmdbMovieImages)
                 .where(tmdbMovieImages.tmdbMovieDetail.id.in(tmdbMovieDetailIds)
-                        .and(tmdbMovieImages.imageType.eq(ImageType.POSTER)))
+                        .and(tmdbMovieImages.imageType.eq(ImageType.BACKDROP))
+                        .and(tmdbMovieImages.ratio.between(1.0, 2.0))
+                        .and(tmdbMovieImages.iso6391.eq("en")))
+                .orderBy(tmdbMovieImages.id.asc()) // 첫 번째 것을 가져오기 위해 정렬
                 .fetch();
 
-        // 비디오 정보 조회 및 초기화
+        // Trailer 비디오 정보 조회 및 초기화 (첫 번째 것만)
         queryFactory
                 .selectFrom(tmdbMovieVideo)
                 .where(tmdbMovieVideo.tmdbMovieDetail.id.in(tmdbMovieDetailIds)
-                        .and(tmdbMovieVideo.videoType.in("Teaser", "Trailer")))
+                        .and(tmdbMovieVideo.videoType.eq("Trailer")))
+                .orderBy(tmdbMovieVideo.id.asc()) // 첫 번째 것을 가져오기 위해 정렬
                 .fetch();
 
         return boxOfficeMovies;
