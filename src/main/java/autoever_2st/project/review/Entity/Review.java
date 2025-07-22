@@ -1,5 +1,6 @@
 package autoever_2st.project.review.Entity;
 
+import autoever_2st.project.common.entity.TimeStamp;
 import autoever_2st.project.movie.entity.Movie;
 import autoever_2st.project.user.Entity.Member;
 import jakarta.persistence.*;
@@ -12,7 +13,7 @@ import java.util.List;
 @Entity
 @Table(name = "review")
 @Setter @Getter
-public class Review {
+public class Review extends TimeStamp {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 

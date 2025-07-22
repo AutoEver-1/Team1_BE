@@ -36,6 +36,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -343,7 +344,15 @@ public class ReviewService {
     private AdminReviewItemDto convertToAdminReviewItemDto(Review review) {
         Movie movie = review.getMovie();
         TmdbMovieDetail detail = movie.getTmdbMovieDetail();
-        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+
+//        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+        TmdbMovieImages image = null;
+        Set<TmdbMovieImages> images = detail.getTmdbMovieImages();
+
+        if (!images.isEmpty()) {
+            image = images.iterator().next(); // 첫 번째 요소 가져오기
+        }
+
 
         AdminMovieDto movieDto = new AdminMovieDto(
                 movie.getId(),
