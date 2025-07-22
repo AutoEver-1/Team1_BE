@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -98,5 +99,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
 
     int countByMemberId(Long memberId);
+
+    @Query(value = "SELECT COUNT(*) FROM review WHERE DATE(registed_at) = :date", nativeQuery = true)
+    int countByCreatedDate(@Param("date") LocalDate date);
+
+    @Query(value = "SELECT COUNT(*) FROM review WHERE YEAR(registed_at) = :year AND MONTH(registed_at) = :month", nativeQuery = true)
+    int countByCreatedMonth(@Param("year") int year, @Param("month") int month);
 
 }
