@@ -13,14 +13,14 @@ public class ReviewerDto {
     private String nickname;
     private Integer review_count;
     private String profile_img_url;
-    private List<String> genre_preference;
+    private List<GenrePreferenceDto> genre_preference;
     private Integer follower_cnt;
     private Double review_avg;
     private List<WishlistItemDto> wishlist;
     private Boolean isBanned;
 
     public ReviewerDto(Long memberId, String role, String nickname, Integer review_count, 
-                      String profile_img_url, List<String> genre_preference, Integer follower_cnt, 
+                      String profile_img_url, List<GenrePreferenceDto> genre_preference, Integer follower_cnt,
                       Double review_avg, List<WishlistItemDto> wishlist) {
         this.memberId = memberId;
         this.role = role;
@@ -35,7 +35,7 @@ public class ReviewerDto {
     }
 
     public ReviewerDto(Long memberId, String role, String nickname, Integer review_count, 
-                      String profile_img_url, List<String> genre_preference, Integer follower_cnt, 
+                      String profile_img_url, List<GenrePreferenceDto> genre_preference, Integer follower_cnt,
                       Double review_avg, List<WishlistItemDto> wishlist, Boolean isBanned) {
         this.memberId = memberId;
         this.role = role;
