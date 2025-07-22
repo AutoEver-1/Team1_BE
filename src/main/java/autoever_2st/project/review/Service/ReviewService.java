@@ -345,6 +345,7 @@ public class ReviewService {
         Movie movie = review.getMovie();
         TmdbMovieDetail detail = movie.getTmdbMovieDetail();
 
+
 //        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
         TmdbMovieImages image = null;
         Set<TmdbMovieImages> images = detail.getTmdbMovieImages();
@@ -354,6 +355,14 @@ public class ReviewService {
         }
 
 
+
+        TmdbMovieImages image = null;
+        Set<TmdbMovieImages> images = detail != null ? detail.getTmdbMovieImages() : null;
+        if (images != null && !images.isEmpty()) {
+            image = images.iterator().next();
+        }
+//        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+//
         AdminMovieDto movieDto = new AdminMovieDto(
                 movie.getId(),
                 detail.getTitle(),
