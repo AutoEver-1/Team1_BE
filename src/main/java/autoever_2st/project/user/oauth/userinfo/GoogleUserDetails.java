@@ -2,9 +2,12 @@ package autoever_2st.project.user.oauth.userinfo;
 
 import java.util.Map;
 
+//구글 응답 구현
+
 public class GoogleUserDetails  implements OAuth2UserInfo {
     private final Map<String, Object> attributes;
 
+    //생성자 방식으로 값을 받음
     public GoogleUserDetails(Map<String, Object> attributes) {
         this.attributes = attributes;
     }
