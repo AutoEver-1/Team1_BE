@@ -22,7 +22,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
     private final String baseUrl = "https://image.tmdb.org/t/p/original/";
 
     @Override
-    public List<MovieDto> findTop100MoviesByGenreId(Long genreId) {
+    public List<MovieDto> findMoviesByGenreId(Long genreId) {
         QMovieGenreMatch genreMatch = QMovieGenreMatch.movieGenreMatch;
         QTmdbMovieDetail tmdbMovie = QTmdbMovieDetail.tmdbMovieDetail;
         QMovieGenre genre = QMovieGenre.movieGenre;
@@ -32,8 +32,8 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
         QMovie movie = QMovie.movie;
         QKoficMovieDetail koficMovie = QKoficMovieDetail.koficMovieDetail;
 
-        // Movie 엔티티와 포스터가 있는 영화 조회
-        List<Tuple> movieIdsWithPoster = queryFactory
+        // 해당 장르의 모든 Movie 엔티티 조회 (포스터 조건 완화)
+        List<Tuple> movieResults = queryFactory
                 .select(movie.id, tmdbMovie.id)
                 .from(movie)
                 .leftJoin(movie.tmdbMovieDetail, tmdbMovie)
@@ -43,40 +43,29 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                     .or(genreMatch.tmdbMovieDetail.eq(koficMovie.tmdbMovieDetail))
                 )
                 .join(genreMatch.movieGenre, genre)
-                .leftJoin(image).on(
-                    image.tmdbMovieDetail.eq(tmdbMovie)
-                    .or(image.tmdbMovieDetail.eq(koficMovie.tmdbMovieDetail))
-                )
                 .where(
                     genre.id.eq(genreId),
-                    image.imageType.eq(ImageType.POSTER),
-                    image.iso6391.eq("en"),
-                    image.ratio.between(0.0, 1.0),
-                    image.imageUrl.isNotNull(),
-                    image.imageUrl.ne(""),
-                    image.baseUrl.isNotNull(),
-                    image.baseUrl.ne("")
+                    tmdbMovie.id.isNotNull() // TMDB 정보가 있는 영화만
                 )
-                .orderBy(tmdbMovie.popularity.desc())
-                .limit(100)
+                .orderBy(tmdbMovie.popularity.desc().nullsLast())
                 .fetch();
 
-        if (movieIdsWithPoster.isEmpty()) {
+        if (movieResults.isEmpty()) {
             return Collections.emptyList();
         }
 
         // Movie ID와 TMDB ID 매핑
-        Map<Long, Long> movieToTmdbIdMap = movieIdsWithPoster.stream()
+        Map<Long, Long> movieToTmdbIdMap = movieResults.stream()
                 .collect(Collectors.toMap(
                     tuple -> tuple.get(0, Long.class), // Movie ID
                     tuple -> tuple.get(1, Long.class), // TMDB ID
                     (existing, replacement) -> existing
                 ));
 
-        List<Long> tmdbmovieIds = new ArrayList<>(movieToTmdbIdMap.keySet());
+        List<Long> movieIds = new ArrayList<>(movieToTmdbIdMap.keySet());
         List<Long> tmdbIds = new ArrayList<>(movieToTmdbIdMap.values());
 
-        // 영화 기본 정보와 장르 정보 조회
+        // 영화 기본 정보 조회
         List<Tuple> results = queryFactory
                 .select(
                     tmdbMovie.isAdult,
@@ -96,9 +85,9 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                 .join(genreMatch.movieGenre, genre)
                 .where(
                     genre.id.eq(genreId),
-                    movie.id.in(tmdbmovieIds)
+                    movie.id.in(movieIds)
                 )
-                .orderBy(tmdbMovie.popularity.desc())
+                .orderBy(tmdbMovie.popularity.desc().nullsLast())
                 .fetch();
 
         if (results.isEmpty()) {
@@ -106,7 +95,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
         }
 
         // 조회된 영화 ID 목록
-        List<Long> movieIds = results.stream()
+        List<Long> finalMovieIds = results.stream()
                 .map(tuple -> tuple.get(4, Long.class))
                 .collect(Collectors.toList());
 
@@ -121,7 +110,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                     .or(genreMatch.tmdbMovieDetail.eq(koficMovie.tmdbMovieDetail))
                 )
                 .join(genreMatch.movieGenre, genre)
-                .where(movie.id.in(movieIds))
+                .where(movie.id.in(finalMovieIds))
                 .fetch()
                 .stream()
                 .collect(Collectors.groupingBy(
@@ -132,7 +121,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                     )
                 ));
 
-        // 포스터 이미지 조회 (ratio 0~1, en, POSTER)
+        // 포스터 이미지 조회 (조건 완화: ratio 조건과 언어 조건 제거)
         Map<Long, String> posterMap = queryFactory
                 .select(movie.id, image.baseUrl, image.imageUrl)
                 .from(movie)
@@ -143,16 +132,22 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                     .or(image.tmdbMovieDetail.eq(koficMovie.tmdbMovieDetail))
                 )
                 .where(
-                    movie.id.in(movieIds),
+                    movie.id.in(finalMovieIds),
                     image.imageType.eq(ImageType.POSTER),
-                    image.iso6391.eq("en"),
-                    image.ratio.between(0.0, 1.0),
                     image.imageUrl.isNotNull(),
                     image.imageUrl.ne(""),
                     image.baseUrl.isNotNull(),
                     image.baseUrl.ne("")
                 )
-                .orderBy(image.id.asc())
+                .orderBy(
+                    // 우선순위: en > ko > null
+                    image.iso6391.when("en").then(1)
+                           .when("ko").then(2)
+                           .otherwise(3).asc(),
+                    // ratio가 0~1 사이인 것 우선
+                    image.ratio.between(0.0, 1.0).desc(),
+                    image.id.asc()
+                )
                 .fetch()
                 .stream()
                 .collect(Collectors.toMap(
@@ -173,7 +168,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                 )
                 .join(crew.tmdbMember, member)
                 .where(
-                    movie.id.in(movieIds),
+                    movie.id.in(finalMovieIds),
                     crew.job.eq("Director")
                 )
                 .fetch()
@@ -182,7 +177,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                     tuple -> tuple.get(0, Long.class),
                     Collectors.mapping(
                         tuple -> new DirectorDto(
-                            tuple.get(1, Gender.class).getGenderKrString(),
+                            tuple.get(1, Gender.class) != null ? tuple.get(1, Gender.class).getGenderKrString() : "",
                             tuple.get(2, Long.class),
                             tuple.get(3, String.class),
                             tuple.get(4, String.class),
@@ -203,7 +198,7 @@ public class MovieGenreMatchRepositoryImpl implements MovieGenreMatchRepositoryC
                         tuple.get(3, String.class),
                         movieId, // Movie 엔티티의 ID 사용
                         genreMap.getOrDefault(movieId, Collections.emptyList()),
-                        posterMap.get(movieId),
+                        posterMap.get(movieId), // 포스터가 없어도 null로 처리
                         tuple.get(5, Double.class),
                         directorMap.getOrDefault(movieId, Collections.emptyList())
                     );

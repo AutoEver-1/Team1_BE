@@ -31,12 +31,29 @@ services:
     networks:
       - hyundai-network
 
+  flask:
+    image: hojipkim/flask:latest
+    container_name: flask-ai
+    ports:
+      - "5050:5050"
+    networks:
+      - hyundai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   backend:
     image: hojipkim/hyundai_backend:latest
     depends_on:
       db:
         condition: service_healthy
       mongodb:
+        condition: service_healthy
+      flask:
         condition: service_healthy
     ports:
       - 8080:8080
@@ -48,6 +65,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=hyundai123
       - SPRING_DATA_MONGODB_URI=mongodb://root:hyundai123@mongodb:27017/cinever?authSource=admin
       - SPRING_DATA_MONGODB_DATABASE=cinever
+      - API_FLASK_URL=http://flask:5050
     restart: on-failure
 
   db:

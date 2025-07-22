@@ -20,11 +20,13 @@ import autoever_2st.project.movie.repository.MovieRepository;
 import autoever_2st.project.movie.service.MovieService;
 import autoever_2st.project.review.Repository.ReviewDetailRepository;
 import autoever_2st.project.review.Repository.ReviewRepository;
+import autoever_2st.project.review.Service.KeywordService;
 import autoever_2st.project.reviewer.dto.ReviewerDto;
 import autoever_2st.project.user.Entity.Member;
 import autoever_2st.project.user.Entity.MemberGenrePreference;
 import autoever_2st.project.user.Repository.MemberGenrePreferenceRepository;
 import autoever_2st.project.user.Repository.UserRepository;
+import autoever_2st.project.user.Repository.follow.MemberFollowerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -64,6 +66,9 @@ public class MovieServiceImpl implements MovieService {
     private final TmdbMovieDetailOttRepository tmdbMovieDetailOttRepository;
     private final CompanyMovieRepository companyMovieRepository;
     private final MemberGenrePreferenceRepository memberGenrePreferenceRepository;
+    private final MemberFollowerRepository memberFollowerRepository;
+    private final KeywordService keywordService;
+
 
     String baseUrl = "https://image.tmdb.org/t/p/original/";
 
@@ -598,7 +603,7 @@ public class MovieServiceImpl implements MovieService {
 
     @Override
     public MovieListResponseDto getHundredMoviesByGenre(Long genreId) {
-        List<MovieDto> movies = movieGenreMatchRepository.findTop100MoviesByGenreId(genreId);
+        List<MovieDto> movies = movieGenreMatchRepository.findMoviesByGenreId(genreId);
         return new MovieListResponseDto(movies);
     }
 
@@ -667,7 +672,7 @@ public class MovieServiceImpl implements MovieService {
                     String imageUrl = (String) result[2];
                     moviePosterMap.put(movieDetailId, baseUrl + imageUrl);
                 }
-            }
+                        }
 
             // 모든 감독 ID를 한 번에 조회
             Set<Long> directorIds = upcomingMovies.stream()
@@ -869,21 +874,57 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<ReviewerDto> searchReviewerByName(String reviewerName, Pageable pageable) {
+        log.info("리뷰어 이름으로 검색: '{}'", reviewerName);
+        
+        // 먼저 전체 멤버 수 확인
+        long totalMembers = userRepository.count();
+        log.info("전체 멤버 수: {}", totalMembers);
+        
+        // 검색어가 있는 멤버들을 찾아보기
+        List<Member> allMembersWithName = userRepository.findByNicknameContaining(reviewerName);
+        log.info("닉네임에 '{}' 포함된 멤버 수 (List 버전): {}", reviewerName, allMembersWithName.size());
+        
+        if (!allMembersWithName.isEmpty()) {
+            for (Member member : allMembersWithName) {
+                log.info("닉네임 매칭: ID={}, 이름='{}', 닉네임='{}'", 
+                    member.getId(), member.getName(), member.getNickname());
+            }
+        }
+        
+        // 이름 필드로 검색
         Page<Member> memberPage = userRepository.findAllByNameContaining(reviewerName, pageable);
 
-        return memberPage.map(member -> new ReviewerDto(
+        log.info("이름 필드로 검색 결과: {} 명의 멤버 발견", memberPage.getTotalElements());
+        
+        if (memberPage.hasContent()) {
+            for (Member member : memberPage.getContent()) {
+                log.info("이름 매칭: ID={}, 이름='{}', 닉네임='{}'", 
+                    member.getId(), member.getName(), member.getNickname());
+            }
+        }
+        
+        return memberPage.map(member -> {
+            // 리뷰 수 계산
+            int reviewCount = reviewRepository.countByMemberId(member.getId());
+            
+            // 팔로워 수 계산
+            long followerCount = memberFollowerRepository.countByMemberId(member.getId());
+            
+            return new ReviewerDto(
             member.getId(),
             member.getRole() != null ? member.getRole().getName().toString() : "USER",
             member.getNickname(),
-            0,
+                reviewCount,
             member.getProfileImgUrl(),
             new ArrayList<>(),
-            member.getFollowers() != null ? member.getFollowers().size() : 0,
+                (int) followerCount,
             0.0,
             new ArrayList<>(),
             member.getIs_banned() != null ? member.getIs_banned() : false
-        ));
+            );
+        });
     }
 
     @Override
@@ -918,11 +959,11 @@ public class MovieServiceImpl implements MovieService {
                     .filter(Objects::nonNull)
                     .distinct()
                     .map(member -> new DirectorDto(
-                            member.getGender().getGenderKrString(),
-                            member.getTmdbId(),
-                            member.getName(),
-                            member.getOriginalName(),
-                            member.getProfilePath() != null ? baseUrl + member.getProfilePath() : null
+                                member.getGender().getGenderKrString(),
+                                member.getTmdbId(),
+                                member.getName(),
+                                member.getOriginalName(),
+                                member.getProfilePath() != null ? baseUrl + member.getProfilePath() : null
                     ))
                     .collect(Collectors.toList());
 
@@ -946,7 +987,7 @@ public class MovieServiceImpl implements MovieService {
                                         && image.getRatio() != null
                                         && image.getRatio() > 1.0)
                                     .findFirst()
-                                    .map(image -> image.getBaseUrl() + image.getImageUrl())
+                        .map(image -> image.getBaseUrl() + image.getImageUrl())
                                     .orElseGet(() ->
                                         // 가로가 긴 이미지가 없으면 일반 포스터 사용
                                         tmdbMovieDetail.getTmdbMovieImages().stream()
@@ -967,8 +1008,8 @@ public class MovieServiceImpl implements MovieService {
                             && video.getVideoUrl() != null
                             && !video.getVideoUrl().isEmpty())
                     .findFirst()
-                    .map(video -> video.getBaseUrl() + video.getVideoUrl())
-                    .orElse("");
+                        .map(video -> video.getBaseUrl() + video.getVideoUrl())
+                        .orElse("");
 
             // Movie 엔티티 조회
             Optional<Movie> movieOpt = movieRepository.findByTmdbMovieDetail(tmdbMovieDetail);
@@ -1017,8 +1058,8 @@ public class MovieServiceImpl implements MovieService {
                 throw new IllegalArgumentException("영화 정보가 없습니다. Movie ID: " + movieId);
             }
             tmdbMovieDetail = koficMovieDetail.getTmdbMovieDetail();
-            if (tmdbMovieDetail == null) {
-                throw new IllegalArgumentException("TMDB 영화 정보가 없습니다. Movie ID: " + movieId);
+        if (tmdbMovieDetail == null) {
+            throw new IllegalArgumentException("TMDB 영화 정보가 없습니다. Movie ID: " + movieId);
             }
         }
 
@@ -1138,6 +1179,9 @@ public class MovieServiceImpl implements MovieService {
                 ))
                 .collect(Collectors.toList());
 
+        // 키워드 맵 조회
+        Map<String, Integer> keywordMap = keywordService.getMovieKeywordMap(movieId);
+
         // MovieDetailDto 생성 및 반환 (movieId 사용)
         return new MovieDetailDto(
             tmdbMovieDetail.getIsAdult(),
@@ -1162,7 +1206,8 @@ public class MovieServiceImpl implements MovieService {
             posterPath,
             stillcutPath,
             tmdbMovieDetail.getRuntime(),
-            languages
+            languages,
+            keywordMap
         );
     }
 
@@ -1215,7 +1260,7 @@ public class MovieServiceImpl implements MovieService {
                     .filter(Objects::nonNull)
                     .map(genre -> genre.getName())
                     .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                .collect(Collectors.toList());
         }
 
         // 포스터 이미지 추출 (ratio가 0~1, iso_639_1이 'en'인 POSTER 이미지)
@@ -1228,22 +1273,22 @@ public class MovieServiceImpl implements MovieService {
         List<DirectorDto> directors = new ArrayList<>();
         if (tmdbMovieDetail.getTmdbMovieCrew() != null) {
             directors = tmdbMovieDetail.getTmdbMovieCrew().stream()
-                    .filter(crew -> "Director".equals(crew.getJob()))
+                .filter(crew -> "Director".equals(crew.getJob()))
                     .map(crew -> crew.getTmdbMember())
                     .filter(Objects::nonNull) // null 체크
                     .map(member -> member.getTmdbId()) // tmdbId만 추출
-                    .distinct() // 중복 제거
-                    .map(tmdbId -> {
+                .distinct() // 중복 제거
+                .map(tmdbId -> {
                         Optional<TmdbMember> memberOpt = tmdbMemberRepository.findById(tmdbId);
                         if (memberOpt.isPresent()) {
                             TmdbMember member = memberOpt.get();
-                            return new DirectorDto(
-                                member.getGender().getGenderKrString(),
-                                member.getTmdbId(),
-                                member.getName(),
-                                member.getOriginalName(),
-                                member.getProfilePath() != null ? baseUrl + member.getProfilePath() : null
-                            );
+                    return new DirectorDto(
+                        member.getGender().getGenderKrString(),
+                        member.getTmdbId(),
+                        member.getName(),
+                        member.getOriginalName(),
+                        member.getProfilePath() != null ? baseUrl + member.getProfilePath() : null
+                    );
                         } else {
                             log.warn("TmdbMember ID {}를 찾을 수 없습니다. 기본 감독 정보로 대체합니다.", tmdbId);
                             return new DirectorDto(
@@ -1254,8 +1299,8 @@ public class MovieServiceImpl implements MovieService {
                                 null
                             );
                         }
-                    })
-                    .collect(Collectors.toList());
+                })
+                .collect(Collectors.toList());
         }
 
         // popularity가 null인 경우 0.0으로 기본값 설정

@@ -21,4 +21,17 @@ public class TimeStamp {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    // 탈퇴 처리 메서드
+    public void markDeleted() {
+        this.deletedAt = LocalDateTime.now();
+    }
+
+    // 탈퇴 여부 확인 메서드
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
 }

@@ -7,6 +7,7 @@ import autoever_2st.project.movie.dto.response.BoxOfficeResponseDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
 import autoever_2st.project.movie.service.impl.MovieWishlistServiceImpl;
 import autoever_2st.project.movie.service.MovieService;
+import autoever_2st.project.review.Service.KeywordService;
 import autoever_2st.project.user.Service.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import autoever_2st.project.movie.dto.response.*;
@@ -38,6 +39,14 @@ public class MovieController {
 
     // 영화 제목/배우/감독 검색
     private final MovieService movieService;
+
+    private final KeywordService keywordService;
+
+    @GetMapping("/{movieId}/keyword")
+    public ApiResponse<Map<String, Integer>> getMovieKeywordMap(@PathVariable Long movieId) {
+        Map<String, Integer> keywordMap = keywordService.getMovieKeywordMap(movieId);
+        return ApiResponse.success(keywordMap, HttpStatus.OK.value());
+    }
 
     // 영화 제목/배우/감독/리뷰어 검색
     @GetMapping
