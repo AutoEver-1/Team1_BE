@@ -346,6 +346,16 @@ public class ReviewService {
         TmdbMovieDetail detail = movie.getTmdbMovieDetail();
 
 
+//        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+        TmdbMovieImages image = null;
+        Set<TmdbMovieImages> images = detail.getTmdbMovieImages();
+
+        if (!images.isEmpty()) {
+            image = images.iterator().next(); // 첫 번째 요소 가져오기
+        }
+
+
+
         TmdbMovieImages image = null;
         Set<TmdbMovieImages> images = detail != null ? detail.getTmdbMovieImages() : null;
         if (images != null && !images.isEmpty()) {
