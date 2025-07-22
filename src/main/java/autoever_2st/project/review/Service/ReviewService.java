@@ -36,6 +36,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -179,6 +180,8 @@ public class ReviewService {
                 .collect(Collectors.toList());
     }
 
+
+
     private ReviewDto convertToDto(Review review, Long loginMemberId) {
         Member member = review.getMember();
 
@@ -237,7 +240,8 @@ public class ReviewService {
                             reviewDetail.getContent(),
                             review.getLikes().size(),
                             detail.getIsAdult(),
-                            isLiked // 💡추가된 필드
+                            isLiked,            // 💡추가된 필드
+                            review.getId()      // 💡추가된 필드
                     );
                 })
                 .collect(Collectors.toList());
@@ -296,6 +300,7 @@ public class ReviewService {
                             .followingNickname(followingUser.getNickname())
                             .followingMemId(followingUser.getId())
 
+                            .reviewId(review.getId())
                             .rating(detail.getRating())
                             .reviewedDate(
                                     detail.getCreatedAt() != null
@@ -343,7 +348,13 @@ public class ReviewService {
     private AdminReviewItemDto convertToAdminReviewItemDto(Review review) {
         Movie movie = review.getMovie();
         TmdbMovieDetail detail = movie.getTmdbMovieDetail();
-        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+//        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+        TmdbMovieImages image = null;
+        Set<TmdbMovieImages> images = detail.getTmdbMovieImages();
+
+        if (!images.isEmpty()) {
+            image = images.iterator().next(); // 첫 번째 요소 가져오기
+        }
 
         AdminMovieDto movieDto = new AdminMovieDto(
                 movie.getId(),
@@ -388,35 +399,6 @@ public class ReviewService {
             reviewDetailRepository.save(detail);
         }
     }
-
-//    @Transactional(readOnly = true)
-//    public UserReviewListResponseDto getUserReviews(Long memberId) {
-//        List<Review> reviews = reviewRepository.findWithMovieAndDetailsByMemberId(memberId);
-//
-//        List<UserReviewDto> reviewDtos = reviews.stream()
-//                .map(review -> {
-//                    Movie movie = review.getMovie();
-//                    TmdbMovieDetail detail = movie.getTmdbMovieDetail();
-//                    TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
-//
-//                    ReviewDetail reviewDetail = review.getReviewDetail();
-//
-//                    return new UserReviewDto(
-//                            movie.getId(),
-//                            detail.getTitle(),
-//                            image != null ? image.getBaseUrl() + image.getImageUrl() : null,
-//                            detail.getReleaseDate(),
-//                            reviewDetail.getRating(),
-//                            reviewDetail.getCreatedAt(),
-//                            reviewDetail.getContent(),
-//                            review.getLikes().size(),
-//                            detail.getIsAdult()
-//                    );
-//                })
-//                .collect(Collectors.toList());
-//
-//        return new UserReviewListResponseDto(reviewDtos.size(), reviewDtos);
-//    }
 
 
 }
