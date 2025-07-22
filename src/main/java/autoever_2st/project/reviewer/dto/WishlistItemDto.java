@@ -6,11 +6,17 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Getter
 public class WishlistItemDto {
-    private String poster_path;
     private Long movieId;
+    private String poster_Path;
+    private String title;
 
-    public WishlistItemDto(String poster_path, Long movieId) {
-        this.poster_path = poster_path;
+    public WishlistItemDto(Long movieId, String posterPath, String title) {
         this.movieId = movieId;
+        this.poster_Path = posterPath;
+        this.title = title;
+    }
+
+    public String getPosterPath(){
+        return this.poster_Path;
     }
 }
