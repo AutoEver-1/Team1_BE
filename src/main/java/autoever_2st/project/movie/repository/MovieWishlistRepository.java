@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface MovieWishlistRepository extends JpaRepository<MovieWishlist, Long> {
+public interface MovieWishlistRepository extends JpaRepository<MovieWishlist, Long>, MovieWishlistRepositoryCustom {
     List<MovieWishlist> findByMemberId(Long memberId);
 
     @Query("SELECT mw.movie.id FROM MovieWishlist mw WHERE mw.member.id = :memberId ORDER BY mw.id DESC")
