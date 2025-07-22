@@ -22,6 +22,8 @@ import autoever_2st.project.review.Repository.ReviewDetailRepository;
 import autoever_2st.project.review.Repository.ReviewRepository;
 import autoever_2st.project.reviewer.dto.ReviewerDto;
 import autoever_2st.project.user.Entity.Member;
+import autoever_2st.project.user.Entity.MemberGenrePreference;
+import autoever_2st.project.user.Repository.MemberGenrePreferenceRepository;
 import autoever_2st.project.user.Repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +63,7 @@ public class MovieServiceImpl implements MovieService {
     private final TmdbMovieCastRepository tmdbMovieCastRepository;
     private final TmdbMovieDetailOttRepository tmdbMovieDetailOttRepository;
     private final CompanyMovieRepository companyMovieRepository;
+    private final MemberGenrePreferenceRepository memberGenrePreferenceRepository;
 
     String baseUrl = "https://image.tmdb.org/t/p/original/";
 
@@ -196,6 +199,37 @@ public class MovieServiceImpl implements MovieService {
 
         // 1. memberId로 Review 리스트 조회
         List<Long> movieIds = reviewRepository.findFavoriteMovieIdsByMemberId(memberId);
+
+
+        // 최애 장르 선별 3개
+        Member member = userRepository.findById(memberId).orElseThrow();
+        // 2. 최상위 영화부터 장르 수집 (최대 3개)
+        Set<MovieGenre> genreSet = new LinkedHashSet<>();
+
+        for (Long movieId : movieIds) {
+            if (genreSet.size() >= 3) break;
+
+            Movie movie = movieRepository.findById(movieId).orElseThrow();
+            Long tmdbId = movie.getTmdbMovieDetail().getId();
+
+            List<Long> genreIds = movieGenreMatchRepository.findGenreIdsByTmdbId(tmdbId);
+            List<MovieGenre> genres = movieGenreRepository.findAllById(genreIds);
+
+            for (MovieGenre genre : genres) {
+                genreSet.add(genre);
+                if (genreSet.size() >= 3) break;
+            }
+        }
+
+        // 3. 기존 장르 선호도 삭제 후 저장
+        memberGenrePreferenceRepository.deleteByMember(member);
+        for (MovieGenre genre : genreSet) {
+            MemberGenrePreference pref = new MemberGenrePreference();
+            pref.setMember(member);
+            pref.setMovieGenre(genre);
+            pref.setValue(1); // 기본값
+            memberGenrePreferenceRepository.save(pref);
+        }
 
         //List<Long> movieIds = movieWishlistRepository.findMovieIdsByMemberId(memberId);
 

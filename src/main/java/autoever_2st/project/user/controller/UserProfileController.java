@@ -82,7 +82,6 @@ public class UserProfileController {
     // 최애 영화 조회
     @GetMapping("/{memberId}/favorite-movie")
     public ApiResponse<MovieListResponseDto> getFavoriteMovies(@PathVariable Long memberId) {
-//        List<MovieDto> movieList = createMockMovieList(5);
         MovieListResponseDto responseDto = movieService.getFavoriteMovies(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }

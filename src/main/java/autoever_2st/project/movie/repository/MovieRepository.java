@@ -21,4 +21,6 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
     @Query("SELECT m FROM Movie m WHERE m.tmdbMovieDetail.id IN :tmdbMovieDetailIds")
     List<Movie> findAllByTmdbMovieDetailIds(@Param("tmdbMovieDetailIds") List<Long> tmdbMovieDetailIds);
 
+//    @Query("SELECT r.movie FROM Review r WHERE r.member.id = :memberId ORDER BY r.likeCount DESC")
+//    List<Movie> findFavoriteMoviesByMemberIdOrderByLikeCountDesc(@Param("memberId") Long memberId);
 }
