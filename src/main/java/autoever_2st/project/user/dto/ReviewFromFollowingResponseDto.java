@@ -27,6 +27,7 @@ public class ReviewFromFollowingResponseDto {
     private String followingNickname;
     private Long followingMemId;
 
+    private Long reviewId;
     private Double rating;
     private LocalDate reviewedDate;
     private String context;

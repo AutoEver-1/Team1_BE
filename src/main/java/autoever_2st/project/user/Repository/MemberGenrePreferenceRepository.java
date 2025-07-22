@@ -9,4 +9,6 @@ import java.util.List;
 public interface MemberGenrePreferenceRepository extends JpaRepository<MemberGenrePreference, Long> {
     List<MemberGenrePreference> findByMember(Member member);
     List<MemberGenrePreference> findByMemberIdOrderByValueDesc(Long memberId);
+    void deleteByMember(Member member);
+
 }

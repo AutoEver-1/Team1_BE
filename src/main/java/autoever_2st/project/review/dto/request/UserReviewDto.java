@@ -17,10 +17,11 @@ public class UserReviewDto {
     private int likeCount;
     private boolean isAdult;
     private boolean likedByMe;
+    private Long reviewId;
 
     public UserReviewDto(Long movieId, String title, String posterPath, Date releaseDate,
                          double rating, Date reviewdDate, String context,
-                         int likeCount, boolean isAdult, boolean likedByMe) {
+                         int likeCount, boolean isAdult, boolean likedByMe, Long reviewId) {
         this.movieId = movieId;
         this.title = title;
         this.posterPath = posterPath;
@@ -31,6 +32,7 @@ public class UserReviewDto {
         this.likeCount = likeCount;
         this.isAdult = isAdult;
         this.likedByMe = likedByMe;
+        this.reviewId = reviewId;
     }
 
     // Getter / Setter 생략 가능 (롬복 사용시)
