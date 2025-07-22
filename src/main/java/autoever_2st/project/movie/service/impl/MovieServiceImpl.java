@@ -29,13 +29,11 @@ import autoever_2st.project.user.Repository.UserRepository;
 import autoever_2st.project.user.Repository.follow.MemberFollowerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -402,46 +400,54 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    public OttMovieListResponseDto getRecentlyOttMovieList() {
-        // 지원하는 OTT 플랫폼 TMDB ID 목록
-        List<Long> targetOttIds = List.of(11L, 350L, 87L, 371L, 764L, 765L);
+    @Transactional
+    public OttMovieListResponseDto getRecentlyOttMovieList(Long ottId) {
+        // 특정 OTT 플랫폼 정보 조회
+        Optional<OttPlatformDao.OttPlatformInfo> ottPlatformOpt = ottPlatformDao.findOttPlatformById(ottId);
+        if (ottPlatformOpt.isEmpty()) {
+            log.warn("OTT 플랫폼을 찾을 수 없습니다. ID: {}", ottId);
+            return new OttMovieListResponseDto(Collections.emptyList(), 
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        }
 
-        // OTT 플랫폼 정보 조회
-        List<OttPlatformDao.OttPlatformInfo> ottPlatforms = ottPlatformDao.findAllOttPlatforms();
-        
-        // 지원하는 OTT 플랫폼만 필터링
-        List<OttPlatformDao.OttPlatformInfo> supportedOttPlatforms = ottPlatforms.stream()
-                .filter(platform -> targetOttIds.contains(platform.getTmdbOttId()))
-                .collect(Collectors.toList());
+        OttPlatformDao.OttPlatformInfo ottPlatform = ottPlatformOpt.get();
+        Long ottPlatformId = ottPlatform.getId();
+        Long tmdbOttId = ottPlatform.getTmdbOttId();
+        String ottName = ottPlatform.getName();
 
-        log.info("지원되는 OTT 플랫폼: {}", supportedOttPlatforms.stream()
-                .map(p -> p.getTmdbOttId() + "(" + p.getName() + ")")
-                .collect(Collectors.joining(", ")));
+        log.info("OTT 플랫폼 처리 시작: {} (TMDB ID: {}, DB ID: {})", ottName, tmdbOttId, ottPlatformId);
 
-        // OTT 플랫폼 정보 생성 (TMDB ID 기준)
-        Map<Long, String> ottNameMap = supportedOttPlatforms.stream()
-                .collect(Collectors.toMap(
-                        OttPlatformDao.OttPlatformInfo::getTmdbOttId,
-                        OttPlatformDao.OttPlatformInfo::getName
-                ));
+        // OTT 플랫폼 정보 생성
+        List<autoever_2st.project.movie.dto.OttResponseDto> ottList = Collections.singletonList(
+            createOttResponseDto(ottPlatform.getId(), ottPlatform.getName(), 
+                ottPlatform.getName().replaceAll("\\s+", "") + "_logo.png"));
 
-        List<autoever_2st.project.movie.dto.OttResponseDto> ottList = supportedOttPlatforms.stream()
-                .map(platform -> createOttResponseDto(
-                        platform.getId(), // DB ID 사용
-                        platform.getName(),
-                        platform.getName().replaceAll("\\s+", "") + "_logo.png"
-                ))
-                .collect(Collectors.toList());
-
-        // 오늘 날짜와 2달 전 날짜
+        // 오늘 날짜와 2년 전 날짜 (범위 확장)
         Date today = new Date();
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(today);
-        calendar.add(Calendar.MONTH, -12);
-        Date twoMonthsAgo = calendar.getTime();
+        calendar.add(Calendar.YEAR, -1);
+        Date twoYearsAgo = calendar.getTime();
 
-        // 페이징 정보
-        Pageable pageable = PageRequest.of(0, 10);
+        // 페이징 정보 (더 많은 데이터 조회)
+        Pageable pageable = PageRequest.of(0, 32);
+
+        // 최적화된 쿼리로 최근 개봉 영화 조회 (N+1 문제 해결)
+        List<MovieDto> movieDtos = tmdbMovieDetailRepository.findRecentlyReleasedMoviesByOttPlatformOptimized(
+                ottPlatformId, twoYearsAgo, today, pageable);
+
+        log.info("OTT {} - 조회된 영화 수: {}", ottName, movieDtos.size());
+
+        if (movieDtos.isEmpty()) {
+            log.info("조회된 영화가 없습니다.");
+            return new OttMovieListResponseDto(ottList, 
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        }
+
+        // 인기도 순으로 정렬
+        movieDtos.sort(Comparator.comparing(MovieDto::getPopularity).reversed());
 
         // 각 OTT 플랫폼별 영화 목록
         List<autoever_2st.project.movie.dto.NetflixMovieListResponseDto> netflixMovieList = new ArrayList<>();
@@ -451,137 +457,61 @@ public class MovieServiceImpl implements MovieService {
         List<autoever_2st.project.movie.dto.TvingMovieListResponseDto> tvingMovieList = new ArrayList<>();
         List<autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto> coupangPlayMovieList = new ArrayList<>();
 
-        // 각 OTT 플랫폼별로 영화 조회 및 변환
-        for (OttPlatformDao.OttPlatformInfo ottPlatform : supportedOttPlatforms) {
-            Long ottPlatformId = ottPlatform.getId();
-            Long tmdbOttId = ottPlatform.getTmdbOttId();
-            String ottName = ottPlatform.getName();
-
-            log.info("OTT 플랫폼 처리 시작: {} (TMDB ID: {}, DB ID: {})", ottName, tmdbOttId, ottPlatformId);
-
-            // 최근 개봉 영화 조회
-            List<TmdbMovieDetail> recentlyReleasedMovies = tmdbMovieDetailRepository.findRecentlyReleasedMoviesByOttPlatformOrderByPopularityDesc(
-                    ottPlatformId, twoMonthsAgo, today, pageable);
-
-            log.info("OTT {} - 조회된 영화 수: {}", ottName, recentlyReleasedMovies.size());
-
-            if (recentlyReleasedMovies.isEmpty()) {
-                continue;
-            }
-
-            // 성능 최적화: 벌크로 필요한 데이터 미리 조회
-            List<Long> movieDetailIds = recentlyReleasedMovies.stream()
-                    .map(TmdbMovieDetail::getId)
-                    .collect(Collectors.toList());
-
-            // 모든 영화의 이미지를 한 번에 조회
-            Map<Long, String> moviePosterMap = new HashMap<>();
-            if (!movieDetailIds.isEmpty()) {
-                List<Object[]> posterResults = tmdbMovieImageRepository.findPostersByMovieDetailIds(movieDetailIds);
-                for (Object[] result : posterResults) {
-                    Long movieDetailId = (Long) result[0];
-                    String baseUrl = (String) result[1];
-                    String imageUrl = (String) result[2];
-                    moviePosterMap.put(movieDetailId, baseUrl + imageUrl);
-                }
-            }
-
-            // 모든 감독 ID를 한 번에 조회
-            Set<Long> directorIds = recentlyReleasedMovies.stream()
-                    .flatMap(movie -> movie.getTmdbMovieCrew() != null ? 
-                            movie.getTmdbMovieCrew().stream() : Stream.empty())
-                    .filter(crew -> "Director".equals(crew.getJob()))
-                    .map(crew -> crew.getTmdbMember())
-                    .filter(Objects::nonNull)
-                    .map(member -> member.getTmdbId())
-                    .collect(Collectors.toSet());
-
-            Map<Long, TmdbMember> directorMap = new HashMap<>();
-            if (!directorIds.isEmpty()) {
-                List<TmdbMember> directors = tmdbMemberRepository.findAllById(directorIds);
-                directorMap = directors.stream()
-                        .collect(Collectors.toMap(TmdbMember::getTmdbId, Function.identity()));
-            }
-
-            // 모든 Movie 엔티티를 한 번에 조회 (TmdbMovieDetail로 찾기)
-            Map<Long, Movie> movieMap = new HashMap<>();
-            if (!movieDetailIds.isEmpty()) {
-                // TmdbMovieDetail ID를 키로 하여 Movie 엔티티 조회
-                List<Movie> movies = movieRepository.findAllByTmdbMovieDetailIds(movieDetailIds);
-                movieMap = movies.stream()
-                        .collect(Collectors.toMap(
-                            movie -> movie.getTmdbMovieDetail().getId(),
-                            Function.identity()
-                        ));
-            }
-
-            // TmdbMovieDetail을 각 OTT별 MovieDto로 변환하고 popularity로 정렬
-            final Map<Long, String> finalMoviePosterMap = moviePosterMap;
-            final Map<Long, TmdbMember> finalDirectorMap = directorMap;
-            final Map<Long, Movie> finalMovieMap = movieMap;
-            
-            List<MovieDto> movieDtos = recentlyReleasedMovies.stream()
-                    .map(movie -> convertToMovieDtoOptimizedWithMovieId(movie, finalMoviePosterMap, finalDirectorMap, finalMovieMap))
-                    .filter(Objects::nonNull)
-                    .sorted(Comparator.comparing(MovieDto::getPopularity).reversed())
-                    .collect(Collectors.toList());
-
-            // TMDB OTT ID에 따라 각 OTT 플랫폼별로 영화 목록 추가
-            if (tmdbOttId.equals(11L)) { // Netflix
-                netflixMovieList.addAll(movieDtos.stream()
-                        .map(dto -> {
-                            autoever_2st.project.movie.dto.NetflixMovieListResponseDto netflixDto =
-                                new autoever_2st.project.movie.dto.NetflixMovieListResponseDto();
-                            copyProperties(dto, netflixDto);
-                            return netflixDto;
-                        })
-                        .collect(Collectors.toList()));
-            } else if (tmdbOttId.equals(350L)) { // Disney+
-                disneyPlusMovieList.addAll(movieDtos.stream()
-                        .map(dto -> {
-                            autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto disneyDto =
-                                new autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto();
-                            copyProperties(dto, disneyDto);
-                            return disneyDto;
-                        })
-                        .collect(Collectors.toList()));
-            } else if (tmdbOttId.equals(87L)) { // Watcha
-                watchaMovieList.addAll(movieDtos.stream()
-                        .map(dto -> {
-                            autoever_2st.project.movie.dto.WatchaMovieListResponseDto watchaDto =
-                                new autoever_2st.project.movie.dto.WatchaMovieListResponseDto();
-                            copyProperties(dto, watchaDto);
-                            return watchaDto;
-                        })
-                        .collect(Collectors.toList()));
-            } else if (tmdbOttId.equals(371L)) { // Wave
-                waveMovieList.addAll(movieDtos.stream()
-                        .map(dto -> {
-                            autoever_2st.project.movie.dto.WaveMovieListResponseDto waveDto =
-                                new autoever_2st.project.movie.dto.WaveMovieListResponseDto();
-                            copyProperties(dto, waveDto);
-                            return waveDto;
-                        })
-                        .collect(Collectors.toList()));
-            } else if (tmdbOttId.equals(764L)) { // Coupang Play
-                coupangPlayMovieList.addAll(movieDtos.stream()
-                        .map(dto -> {
-                            autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto coupangDto =
-                                new autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto();
-                            copyProperties(dto, coupangDto);
-                            return coupangDto;
-                        })
-                        .collect(Collectors.toList()));
-            } else if (tmdbOttId.equals(765L)) { // Tving
-                tvingMovieList.addAll(movieDtos.stream()
-                        .map(dto -> {
-                            autoever_2st.project.movie.dto.TvingMovieListResponseDto tvingDto =
-                                new autoever_2st.project.movie.dto.TvingMovieListResponseDto();
-                            copyProperties(dto, tvingDto);
-                            return tvingDto;
-                        })
-                        .collect(Collectors.toList()));
-            }
+        // TMDB OTT ID에 따라 각 OTT 플랫폼별로 영화 목록 추가
+        if (tmdbOttId.equals(8L)) { // Netflix
+            netflixMovieList.addAll(movieDtos.stream()
+                    .map(dto -> {
+                        autoever_2st.project.movie.dto.NetflixMovieListResponseDto netflixDto =
+                            new autoever_2st.project.movie.dto.NetflixMovieListResponseDto();
+                        copyProperties(dto, netflixDto);
+                        return netflixDto;
+                    })
+                    .collect(Collectors.toList()));
+        } else if (tmdbOttId.equals(337L)) { // Disney+
+            disneyPlusMovieList.addAll(movieDtos.stream()
+                    .map(dto -> {
+                        autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto disneyDto =
+                            new autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto();
+                        copyProperties(dto, disneyDto);
+                        return disneyDto;
+                    })
+                    .collect(Collectors.toList()));
+        } else if (tmdbOttId.equals(97L)) { // Watcha
+            watchaMovieList.addAll(movieDtos.stream()
+                    .map(dto -> {
+                        autoever_2st.project.movie.dto.WatchaMovieListResponseDto watchaDto =
+                            new autoever_2st.project.movie.dto.WatchaMovieListResponseDto();
+                        copyProperties(dto, watchaDto);
+                        return watchaDto;
+                    })
+                    .collect(Collectors.toList()));
+        } else if (tmdbOttId.equals(356L)) { // wavve
+            waveMovieList.addAll(movieDtos.stream()
+                    .map(dto -> {
+                        autoever_2st.project.movie.dto.WaveMovieListResponseDto waveDto =
+                            new autoever_2st.project.movie.dto.WaveMovieListResponseDto();
+                        copyProperties(dto, waveDto);
+                        return waveDto;
+                    })
+                    .collect(Collectors.toList()));
+        } else if (tmdbOttId.equals(1881L)) { // Coupang Play
+            coupangPlayMovieList.addAll(movieDtos.stream()
+                    .map(dto -> {
+                        autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto coupangDto =
+                            new autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto();
+                        copyProperties(dto, coupangDto);
+                        return coupangDto;
+                    })
+                    .collect(Collectors.toList()));
+        } else if (tmdbOttId.equals(1883L)) { // TVING
+            tvingMovieList.addAll(movieDtos.stream()
+                    .map(dto -> {
+                        autoever_2st.project.movie.dto.TvingMovieListResponseDto tvingDto =
+                            new autoever_2st.project.movie.dto.TvingMovieListResponseDto();
+                        copyProperties(dto, tvingDto);
+                        return tvingDto;
+                    })
+                    .collect(Collectors.toList()));
         }
 
         log.info("최종 결과 - Netflix: {}, Disney+: {}, Watcha: {}, Wave: {}, Tving: {}, Coupang Play: {}",
@@ -608,37 +538,49 @@ public class MovieServiceImpl implements MovieService {
     }
 
     @Override
-    public OttMovieListResponseDto getExpectedOttMovieList() {
-        // 지원하는 OTT 플랫폼 ID 목록
-        List<Long> targetOttIds = List.of(11L, 350L, 87L, 371L, 764L, 765L);
+    public OttMovieListResponseDto getExpectedOttMovieList(Long ottId) {
+        // 특정 OTT 플랫폼 정보 조회
+        Optional<OttPlatformDao.OttPlatformInfo> ottPlatformOpt = ottPlatformDao.findOttPlatformById(ottId);
+        if (ottPlatformOpt.isEmpty()) {
+            log.warn("OTT 플랫폼을 찾을 수 없습니다. ID: {}", ottId);
+            return new OttMovieListResponseDto(Collections.emptyList(), 
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        }
 
-        // OTT 플랫폼 정보 조회
-        List<OttPlatformDao.OttPlatformInfo> ottPlatforms = ottPlatformDao.findAllOttPlatforms();
-        
-        // 지원하는 OTT 플랫폼만 필터링
-        List<OttPlatformDao.OttPlatformInfo> supportedOttPlatforms = ottPlatforms.stream()
-                .filter(platform -> targetOttIds.contains(platform.getTmdbOttId()))
-                .collect(Collectors.toList());
+        OttPlatformDao.OttPlatformInfo ottPlatform = ottPlatformOpt.get();
+        Long ottPlatformId = ottPlatform.getId();
+        Long tmdbOttId = ottPlatform.getTmdbOttId();
+        String ottName = ottPlatform.getName();
 
-        // OTT 플랫폼 ID 목록 생성
-        List<Long> ottPlatformIds = supportedOttPlatforms.stream()
-                .map(OttPlatformDao.OttPlatformInfo::getId)
-                .collect(Collectors.toList());
+        log.info("OTT 플랫폼 처리 시작: {} (TMDB ID: {}, DB ID: {})", ottName, tmdbOttId, ottPlatformId);
 
         // OTT 플랫폼 정보 생성
-        List<autoever_2st.project.movie.dto.OttResponseDto> ottList = supportedOttPlatforms.stream()
-                .map(platform -> createOttResponseDto(
-                        platform.getId(), // DB ID 사용
-                        platform.getName(),
-                        platform.getName().replaceAll("\\s+", "") + "_logo.png"
-                ))
-                .collect(Collectors.toList());
+        List<autoever_2st.project.movie.dto.OttResponseDto> ottList = Collections.singletonList(
+            createOttResponseDto(ottPlatform.getId(), ottPlatform.getName(), 
+                ottPlatform.getName().replaceAll("\\s+", "") + "_logo.png"));
 
         // 오늘 날짜
         Date today = new Date();
 
-        // 페이징 정보 (각 OTT 플랫폼별로 상위 10개씩)
-        Pageable pageable = PageRequest.of(0, 10);
+        // 페이징 정보 (더 많은 데이터 조회)
+        Pageable pageable = PageRequest.of(0, 50);
+
+        // 최적화된 쿼리로 개봉 예정 영화 조회 (N+1 문제 해결)
+        List<MovieDto> movieDtos = tmdbMovieDetailRepository.findUpcomingMoviesByOttPlatformOptimized(
+                ottPlatformId, today, pageable);
+
+        log.info("OTT {} - 조회된 영화 수: {}", ottName, movieDtos.size());
+
+        if (movieDtos.isEmpty()) {
+            log.info("조회된 영화가 없습니다.");
+            return new OttMovieListResponseDto(ottList, 
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+        }
+
+        // 평점 순으로 정렬
+        movieDtos.sort(Comparator.comparing(MovieDto::getTmdbScore).reversed());
 
         // 각 OTT 플랫폼별 영화 목록
         List<autoever_2st.project.movie.dto.NetflixMovieListResponseDto> netflixMovieList = new ArrayList<>();
@@ -648,111 +590,48 @@ public class MovieServiceImpl implements MovieService {
         List<autoever_2st.project.movie.dto.TvingMovieListResponseDto> tvingMovieList = new ArrayList<>();
         List<autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto> coupangPlayMovieList = new ArrayList<>();
 
-        // 각 OTT 플랫폼별로 영화 조회 및 변환
-        for (OttPlatformDao.OttPlatformInfo ottPlatform : supportedOttPlatforms) {
-            Long ottPlatformId = ottPlatform.getId();
-            Long tmdbOttId = ottPlatform.getTmdbOttId();
-
-            // 개봉 예정 영화 조회
-            List<TmdbMovieDetail> upcomingMovies = tmdbMovieDetailRepository.findUpcomingMoviesByOttPlatformOrderByPopularityDesc(
-                    ottPlatformId, today, pageable);
-
-            // 성능 최적화: 벌크로 필요한 데이터 미리 조회
-            List<Long> movieDetailIds = upcomingMovies.stream()
-                    .map(TmdbMovieDetail::getId)
-                    .collect(Collectors.toList());
-
-            // 모든 영화의 이미지를 한 번에 조회
-            Map<Long, String> moviePosterMap = new HashMap<>();
-            if (!movieDetailIds.isEmpty()) {
-                List<Object[]> posterResults = tmdbMovieImageRepository.findPostersByMovieDetailIds(movieDetailIds);
-                for (Object[] result : posterResults) {
-                    Long movieDetailId = (Long) result[0];
-                    String baseUrl = (String) result[1];
-                    String imageUrl = (String) result[2];
-                    moviePosterMap.put(movieDetailId, baseUrl + imageUrl);
-                }
-                        }
-
-            // 모든 감독 ID를 한 번에 조회
-            Set<Long> directorIds = upcomingMovies.stream()
-                    .flatMap(movie -> movie.getTmdbMovieCrew() != null ? 
-                            movie.getTmdbMovieCrew().stream() : Stream.empty())
-                    .filter(crew -> "Director".equals(crew.getJob()))
-                    .map(crew -> crew.getTmdbMember())
-                    .filter(Objects::nonNull)
-                    .map(member -> member.getTmdbId())
-                    .collect(Collectors.toSet());
-
-            Map<Long, TmdbMember> directorMap = new HashMap<>();
-            if (!directorIds.isEmpty()) {
-                List<TmdbMember> directors = tmdbMemberRepository.findAllById(directorIds);
-                directorMap = directors.stream()
-                        .collect(Collectors.toMap(TmdbMember::getTmdbId, Function.identity()));
+        // TMDB OTT ID에 따라 각 OTT 플랫폼별로 영화 목록 추가
+        if (tmdbOttId.equals(8L)) { // Netflix
+            for (MovieDto movieDto : movieDtos) {
+                autoever_2st.project.movie.dto.NetflixMovieListResponseDto netflixMovie = new autoever_2st.project.movie.dto.NetflixMovieListResponseDto();
+                copyProperties(movieDto, netflixMovie);
+                netflixMovieList.add(netflixMovie);
             }
-
-            // 모든 Movie 엔티티를 한 번에 조회 (TmdbMovieDetail로 찾기)
-            Map<Long, Movie> movieMap = new HashMap<>();
-            if (!movieDetailIds.isEmpty()) {
-                // TmdbMovieDetail ID를 키로 하여 Movie 엔티티 조회
-                List<Movie> movies = movieRepository.findAllByTmdbMovieDetailIds(movieDetailIds);
-                movieMap = movies.stream()
-                        .collect(Collectors.toMap(
-                            movie -> movie.getTmdbMovieDetail().getId(),
-                            Function.identity()
-                        ));
+        } else if (tmdbOttId.equals(337L)) { // Disney+
+            for (MovieDto movieDto : movieDtos) {
+                autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto disneyPlusMovie = new autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto();
+                copyProperties(movieDto, disneyPlusMovie);
+                disneyPlusMovieList.add(disneyPlusMovie);
             }
-
-            // TmdbMovieDetail을 각 OTT별 MovieDto로 변환
-            final Map<Long, String> finalMoviePosterMap = moviePosterMap;
-            final Map<Long, TmdbMember> finalDirectorMap = directorMap;
-            final Map<Long, Movie> finalMovieMap = movieMap;
-            
-            List<MovieDto> movieDtos = upcomingMovies.stream()
-                    .map(movie -> convertToMovieDtoOptimizedWithMovieId(movie, finalMoviePosterMap, finalDirectorMap, finalMovieMap))
-                    .filter(Objects::nonNull)
-                    .sorted(Comparator.comparing(MovieDto::getTmdbScore).reversed())
-                    .toList();
-
-            // TMDB OTT ID에 따라 각 OTT 플랫폼별로 영화 목록 추가
-            if (tmdbOttId.equals(11L)) { // Netflix
-                for (MovieDto movieDto : movieDtos) {
-                    autoever_2st.project.movie.dto.NetflixMovieListResponseDto netflixMovie = new autoever_2st.project.movie.dto.NetflixMovieListResponseDto();
-                    copyProperties(movieDto, netflixMovie);
-                    netflixMovieList.add(netflixMovie);
-                }
-            } else if (tmdbOttId.equals(350L)) { // Disney+
-                for (MovieDto movieDto : movieDtos) {
-                    autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto disneyPlusMovie = new autoever_2st.project.movie.dto.DisneyPlusMovieListResponseDto();
-                    copyProperties(movieDto, disneyPlusMovie);
-                    disneyPlusMovieList.add(disneyPlusMovie);
-                }
-            } else if (tmdbOttId.equals(87L)) { // Watcha
-                for (MovieDto movieDto : movieDtos) {
-                    autoever_2st.project.movie.dto.WatchaMovieListResponseDto watchaMovie = new autoever_2st.project.movie.dto.WatchaMovieListResponseDto();
-                    copyProperties(movieDto, watchaMovie);
-                    watchaMovieList.add(watchaMovie);
-                }
-            } else if (tmdbOttId.equals(371L)) { // Wave
-                for (MovieDto movieDto : movieDtos) {
-                    autoever_2st.project.movie.dto.WaveMovieListResponseDto waveMovie = new autoever_2st.project.movie.dto.WaveMovieListResponseDto();
-                    copyProperties(movieDto, waveMovie);
-                    waveMovieList.add(waveMovie);
-                }
-            } else if (tmdbOttId.equals(764L)) { // Coupang Play
-                for (MovieDto movieDto : movieDtos) {
-                    autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto coupangMovie = new autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto();
-                    copyProperties(movieDto, coupangMovie);
-                    coupangPlayMovieList.add(coupangMovie);
-                }
-            } else if (tmdbOttId.equals(765L)) { // Tving
-                for (MovieDto movieDto : movieDtos) {
-                    autoever_2st.project.movie.dto.TvingMovieListResponseDto tvingMovie = new autoever_2st.project.movie.dto.TvingMovieListResponseDto();
-                    copyProperties(movieDto, tvingMovie);
-                    tvingMovieList.add(tvingMovie);
-                }
+        } else if (tmdbOttId.equals(97L)) { // Watcha
+            for (MovieDto movieDto : movieDtos) {
+                autoever_2st.project.movie.dto.WatchaMovieListResponseDto watchaMovie = new autoever_2st.project.movie.dto.WatchaMovieListResponseDto();
+                copyProperties(movieDto, watchaMovie);
+                watchaMovieList.add(watchaMovie);
+            }
+        } else if (tmdbOttId.equals(356L)) { // wavve
+            for (MovieDto movieDto : movieDtos) {
+                autoever_2st.project.movie.dto.WaveMovieListResponseDto waveMovie = new autoever_2st.project.movie.dto.WaveMovieListResponseDto();
+                copyProperties(movieDto, waveMovie);
+                waveMovieList.add(waveMovie);
+            }
+        } else if (tmdbOttId.equals(1881L)) { // Coupang Play
+            for (MovieDto movieDto : movieDtos) {
+                autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto coupangMovie = new autoever_2st.project.movie.dto.CoupangPlayMovieListResponseDto();
+                copyProperties(movieDto, coupangMovie);
+                coupangPlayMovieList.add(coupangMovie);
+            }
+        } else if (tmdbOttId.equals(1883L)) { // TVING
+            for (MovieDto movieDto : movieDtos) {
+                autoever_2st.project.movie.dto.TvingMovieListResponseDto tvingMovie = new autoever_2st.project.movie.dto.TvingMovieListResponseDto();
+                copyProperties(movieDto, tvingMovie);
+                tvingMovieList.add(tvingMovie);
             }
         }
+
+        log.info("최종 결과 - Netflix: {}, Disney+: {}, Watcha: {}, Wave: {}, Tving: {}, Coupang Play: {}",
+                netflixMovieList.size(), disneyPlusMovieList.size(), watchaMovieList.size(),
+                waveMovieList.size(), tvingMovieList.size(), coupangPlayMovieList.size());
 
         return new OttMovieListResponseDto(ottList, netflixMovieList, watchaMovieList, disneyPlusMovieList, waveMovieList, tvingMovieList, coupangPlayMovieList);
     }

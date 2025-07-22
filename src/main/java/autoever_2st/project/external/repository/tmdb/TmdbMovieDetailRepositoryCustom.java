@@ -39,7 +39,19 @@ public interface TmdbMovieDetailRepositoryCustom {
      * 특정 OTT 플랫폼에서 제공하는 최근 개봉 영화를 인기도 순으로 조회
      */
     List<TmdbMovieDetail> findRecentlyReleasedMoviesByOttPlatformOrderByPopularityDesc(Long ottPlatformId, Date startDate, Date endDate, Pageable pageable);
+
+    /**
+     * 특정 OTT 플랫폼에서 제공하는 최근 개봉 영화를 인기도 순으로 조회 (N+1 최적화)
+     * 모든 필요한 데이터를 한 번의 쿼리로 가져와서 성능 최적화
+     */
+    List<MovieDto> findRecentlyReleasedMoviesByOttPlatformOptimized(Long ottPlatformId, Date startDate, Date endDate, Pageable pageable);
     
+    /**
+     * 특정 OTT 플랫폼에서 제공하는 개봉 예정 영화를 인기도 순으로 조회 (N+1 최적화)
+     * 모든 필요한 데이터를 한 번의 쿼리로 가져와서 성능 최적화
+     */
+    List<MovieDto> findUpcomingMoviesByOttPlatformOptimized(Long ottPlatformId, Date today, Pageable pageable);
+
     /**
      * 영화 상세 정보를 모든 연관 엔티티와 함께 조회
      */

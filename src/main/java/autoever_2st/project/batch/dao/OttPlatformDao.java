@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -46,6 +47,34 @@ public class OttPlatformDao {
                 OttPlatformInfo::getTmdbOttId,
                 "OttPlatforms"
         );
+    }
+
+    /**
+     * 특정 ID로 OTT 플랫폼 정보를 조회합니다.
+     * 
+     * @param ottId OTT 플랫폼 ID
+     * @return OTT 플랫폼 정보 (Optional)
+     */
+    public Optional<OttPlatformInfo> findOttPlatformById(Long ottId) {
+        log.info("OTT 플랫폼 ID {}로 검색", ottId);
+
+        try {
+            String sql = "SELECT id, tmdb_ott_id, name FROM ott_platform WHERE id = ?";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, ottId);
+            
+            if (rows.isEmpty()) {
+                log.warn("OTT 플랫폼 ID {}를 찾을 수 없음", ottId);
+                return Optional.empty();
+            }
+            
+            OttPlatformInfo ottPlatformInfo = mapToOttPlatformInfo(rows.get(0));
+            log.info("OTT 플랫폼 조회 완료: {} (TMDB ID: {})", ottPlatformInfo.getName(), ottPlatformInfo.getTmdbOttId());
+            
+            return Optional.of(ottPlatformInfo);
+        } catch (Exception e) {
+            log.error("OTT 플랫폼 ID {} 조회 중 오류 발생: {}", ottId, e.getMessage(), e);
+            return Optional.empty();
+        }
     }
 
     /**
