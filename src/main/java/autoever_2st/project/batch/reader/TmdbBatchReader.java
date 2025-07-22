@@ -67,7 +67,7 @@ public class TmdbBatchReader {
     public ItemReader<List<MovieResponseDto>> parallelMoviePageReader() {
         // 첫 페이지를 가져와서 총 페이지 수 확인
         DiscoverMovieWrapperDto firstPage = tmdbBatchComponent.getTmdbMovieApiComponent().getDiscoverMovieList(1);
-        int totalPages = Math.min(firstPage.getTotalPages(), 40); // 최대 40페이지로 제한
+        int totalPages = Math.min(firstPage.getTotalPages(), 250); // 최대 40페이지로 제한
 
         log.info("현재 상영중인 영화 데이터 로드 시작: 총 {}페이지 중 {}페이지까지 처리 예정", 
                 firstPage.getTotalPages(), totalPages);
@@ -158,7 +158,7 @@ public class TmdbBatchReader {
     public ItemReader<List<MovieResponseDto>> parallelUpcomingMoviePageReader() {
         // 첫 페이지를 가져와서 총 페이지 수 확인
         UpComingMovieWrapperDto firstPage = tmdbBatchComponent.getTmdbMovieApiComponent().getUpComingMovieList(1);
-        int totalPages = firstPage.getTotalPages() > 500 ? 40 : firstPage.getTotalPages();
+        int totalPages = firstPage.getTotalPages() > 500 ? 250 : firstPage.getTotalPages();
 
         List<MovieResponseDto> firstPageResults = firstPage.getResults();
 
