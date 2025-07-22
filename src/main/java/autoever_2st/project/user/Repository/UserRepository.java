@@ -26,6 +26,9 @@ public interface UserRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByEmail(String email);
     Optional<Member> findById(Long memberId);
 
+    Boolean existsByNickname(String nickname);
+
+
     @Query("SELECT m FROM Member m WHERE m.name IS NOT NULL AND LOWER(m.name) LIKE LOWER(CONCAT('%', :name, '%'))")
     Page<Member> findAllByNameContaining(@Param("name") String name, Pageable pageable);
 
