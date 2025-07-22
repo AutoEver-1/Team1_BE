@@ -6,6 +6,7 @@ import autoever_2st.project.user.filter.JWTFilter;
 import autoever_2st.project.user.filter.LoginFilter;
 import autoever_2st.project.user.jwt.JWTUtil;
 import autoever_2st.project.user.oauth.CustomOauth2UserService;
+import autoever_2st.project.user.oauth.OAuth2SuccessHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,12 +37,15 @@ public class SecurityConfig {
     private final UserRepository userRepository;
     private final CustomOauth2UserService customOAuth2UserService;
 
-    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil,  RoleRepository roleRepository, UserRepository userRepository, CustomOauth2UserService customOAuth2UserService) {
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
+    public SecurityConfig(AuthenticationConfiguration configuration, JWTUtil jwtUtil, RoleRepository roleRepository, UserRepository userRepository, CustomOauth2UserService customOAuth2UserService, OAuth2SuccessHandler oAuth2SuccessHandler) {
         this.configuration = configuration;
         this.jwtUtil = jwtUtil;
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.customOAuth2UserService = customOAuth2UserService;
+        this.oAuth2SuccessHandler = oAuth2SuccessHandler;
     }
 
     @Bean
@@ -80,7 +84,8 @@ public class SecurityConfig {
                 .oauth2Login((oauth2) -> oauth2
                         .userInfoEndpoint((userInfoEndpointConfig) -> userInfoEndpointConfig
                                 .userService(customOAuth2UserService))
-                        .defaultSuccessUrl("http://cinever.store/api/swagger-ui/index.html#/", true)
+                        .successHandler(oAuth2SuccessHandler)
+                        //.defaultSuccessUrl("http://cinever.store/api/swagger-ui/index.html#/", true)
                 );
 
 //                .oauth2Login(auth -> auth
@@ -90,8 +95,6 @@ public class SecurityConfig {
 //                        .permitAll()
 //                );
 
-        //세션 설정
-//        httpSecurity
 
 
         //  httpSecurity.addFilterAt(new LoginFilter(authenticationManager(authenticationConfiguration)), UsernamePasswordAuthenticationFilter.class);
