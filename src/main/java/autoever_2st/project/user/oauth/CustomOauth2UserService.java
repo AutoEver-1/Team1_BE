@@ -106,6 +106,11 @@ public class CustomOauth2UserService extends DefaultOAuth2UserService {
             birthDate = LocalDate.parse(birth); // 반드시 yyyy-MM-dd 형식일 때만 가능
         }
 
+        Date safeBirthDate = birthDate != null
+                ? Date.from(birthDate.atStartOfDay(ZoneId.systemDefault()).toInstant())
+                : Date.from(LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
+
+
         String numericNickname = generateRandomNumericNickname(5);
 
 //        Member member = userRepository.findByEmail(email);
@@ -122,7 +127,8 @@ public class CustomOauth2UserService extends DefaultOAuth2UserService {
                     .email(email)
                     .name(name)
                     .gender(gender)
-                    .birth_date(Date.from(birthDate.atStartOfDay(ZoneId.systemDefault()).toInstant()))
+//                    .birth_date(Date.from(birthDate.atStartOfDay(ZoneId.systemDefault()).toInstant()))
+                    .birth_date(safeBirthDate)
                     .role(userRole)
                     .nickname(email + "_" + numericNickname)
                     .profile_img_url("1")

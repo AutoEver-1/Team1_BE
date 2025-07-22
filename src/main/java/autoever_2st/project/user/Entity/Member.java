@@ -1,6 +1,7 @@
 package autoever_2st.project.user.Entity;
 
 
+import autoever_2st.project.common.entity.TimeStamp;
 import autoever_2st.project.user.Entity.Follow.MemberFollower;
 import autoever_2st.project.user.Entity.Follow.MemberFollowing;
 import jakarta.persistence.*;
@@ -18,7 +19,7 @@ import java.util.List;
 @Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Member {
+public class Member extends TimeStamp {
     @Id
     @Column(name = "member_id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)

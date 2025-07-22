@@ -33,10 +33,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -51,8 +48,8 @@ public class ReviewService {
     private final CineverScoreRepository cineverScoreRepository;
     private final ReviewLikeRepository reviewLikeRepository;
     private final MemberFollowingRepository memberFollowingRepository;
-
     private final MovieGenreMatchRepository movieGenreMatchRepository;
+    private final KeywordService keywordService;
 
     @Transactional
     public long createReview(Long movieId, ReviewRequestDto reviewRequestDto) {
@@ -101,6 +98,9 @@ public class ReviewService {
 
         cineverScoreRepository.save(cineverScore); // 새로 만든 경우든 기존이든 save()
 
+        // 4. 키워드 분석 및 저장
+        keywordService.analyzeAndSaveKeywords(review.getId(), reviewRequestDto.getContext());
+
         return review.getId(); // 저장된 리뷰 ID 반환
     }
 
@@ -139,8 +139,8 @@ public class ReviewService {
 
         cineverScoreRepository.save(cineverScore);
 
-
-
+        // 키워드 업데이트
+        keywordService.updateReviewKeywords(review.getId(), reviewRequestDto.getContext());
     }
 
     @Transactional
@@ -169,14 +169,25 @@ public class ReviewService {
         cineverScoreRepository.save(score);
         // }
 
+        // 키워드 삭제
+        keywordService.deleteReviewKeywords(review.getId());
+
         reviewRepository.delete(review); // Cascade로 reviewDetail도 삭제됨
     }
 
     public List<ReviewDto> getReviewsByMovieId(Long movieId,  Long loginMemberId) {
         List<Review> reviews = reviewRepository.findAllByMovieId(movieId);
 
+        // 리뷰 ID 리스트 추출
+        List<Long> reviewIds = reviews.stream()
+                .map(Review::getId)
+                .collect(Collectors.toList());
+
+        // 키워드 배치 조회
+        Map<Long, List<String>> keywordMap = keywordService.getReviewKeywordsBatch(reviewIds);
+
         return reviews.stream()
-                .map(review -> convertToDto(review, loginMemberId))
+                .map(review -> convertToDto(review, loginMemberId, keywordMap.getOrDefault(review.getId(), new ArrayList<>())))
                 .collect(Collectors.toList());
     }
 
@@ -212,6 +223,40 @@ public class ReviewService {
                 review.getReviewDetail().getCreatedAt().toString(),
                 genrePreferences,
                 isLiked
+        );
+    }
+
+    private ReviewDto convertToDto(Review review, Long loginMemberId, List<String> keywords) {
+        Member member = review.getMember();
+
+        boolean isMine = loginMemberId != null && loginMemberId.equals(member.getId());
+
+        // 로그인한 사용자가 좋아요를 눌렀는지 확인
+        boolean isLiked = false;
+        if (loginMemberId != null) {
+            isLiked = review.getLikes().stream()
+                    .anyMatch(like -> like.getMember().getId().equals(loginMemberId));
+        }
+
+        // 장르 이름 리스트 뽑기
+        List<String> genrePreferences = memberGenrePreferenceRepository.findByMember(member).stream()
+                .map(pref -> pref.getMovieGenre().getName())
+                .collect(Collectors.toList());
+
+        return new ReviewDto(
+                review.getId(),
+                member.getId(),
+                review.getReviewDetail().getContent(),
+                review.getReviewDetail().getRating(),
+                member.getNickname(),
+                member.getProfileImgUrl(),
+                member.getRole().getName().name(),
+                review.getLikes().size(),
+                isMine,
+                review.getReviewDetail().getCreatedAt().toString(),
+                genrePreferences,
+                isLiked,
+                keywords
         );
     }
 
@@ -345,17 +390,17 @@ public class ReviewService {
 
 
     @Transactional(readOnly = true)
-    private AdminReviewItemDto convertToAdminReviewItemDto(Review review) {
+    public AdminReviewItemDto convertToAdminReviewItemDto(Review review) {
         Movie movie = review.getMovie();
         TmdbMovieDetail detail = movie.getTmdbMovieDetail();
-//        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+
         TmdbMovieImages image = null;
-        Set<TmdbMovieImages> images = detail.getTmdbMovieImages();
-
-        if (!images.isEmpty()) {
-            image = images.iterator().next(); // 첫 번째 요소 가져오기
+        Set<TmdbMovieImages> images = detail != null ? detail.getTmdbMovieImages() : null;
+        if (images != null && !images.isEmpty()) {
+            image = images.iterator().next();
         }
-
+//        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
+//
         AdminMovieDto movieDto = new AdminMovieDto(
                 movie.getId(),
                 detail.getTitle(),

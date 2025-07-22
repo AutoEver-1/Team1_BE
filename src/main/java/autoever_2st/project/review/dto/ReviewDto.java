@@ -3,6 +3,7 @@ package autoever_2st.project.review.dto;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @NoArgsConstructor
@@ -20,10 +21,11 @@ public class ReviewDto {
     private String updatedAt;
     private List<String> genre_preference;
     private Boolean isLiked;
+    private List<String> keywords;
 
     public ReviewDto(Long reviewId, Long memberId, String context, Double rating, String nickname,
                     String profile_img_url, String role, Integer likeCount, Boolean isMine, 
-                    String updatedAt, List<String> genre_preference, Boolean isLiked) {
+                    String updatedAt, List<String> genre_preference, Boolean isLiked, List<String> keywords) {
         this.reviewId = reviewId;
         this.memberId = memberId;
         this.context = context;
@@ -36,5 +38,14 @@ public class ReviewDto {
         this.updatedAt = updatedAt;
         this.genre_preference = genre_preference;
         this.isLiked = isLiked;
+        this.keywords = keywords;
+    }
+
+    // 기존 생성자와의 호환성을 위한 오버로드 생성자
+    public ReviewDto(Long reviewId, Long memberId, String context, Double rating, String nickname,
+                    String profile_img_url, String role, Integer likeCount, Boolean isMine, 
+                    String updatedAt, List<String> genre_preference, Boolean isLiked) {
+        this(reviewId, memberId, context, rating, nickname, profile_img_url, role, likeCount, 
+             isMine, updatedAt, genre_preference, isLiked, new ArrayList<>());
     }
 }

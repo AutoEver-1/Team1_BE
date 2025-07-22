@@ -19,6 +19,8 @@ public class CustomOauth2UserDetails implements UserDetails, OAuth2User {
         this.attributes = attributes;
     }
 
+    
+    //구글서버에서 넘어오는 데이터
     @Override
     public Map<String, Object> getAttributes() {
         return attributes;
@@ -64,5 +66,9 @@ public class CustomOauth2UserDetails implements UserDetails, OAuth2User {
     @Override
     public boolean isEnabled() {
         return true;
+    }
+
+    public Member getMember() {
+        return member;
     }
 }

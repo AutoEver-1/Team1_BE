@@ -26,12 +26,15 @@ public interface UserRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByEmail(String email);
     Optional<Member> findById(Long memberId);
 
-    @Query("SELECT m FROM Member m WHERE m.name LIKE %:name%")
+    @Query("SELECT m FROM Member m WHERE m.name IS NOT NULL AND LOWER(m.name) LIKE LOWER(CONCAT('%', :name, '%'))")
     Page<Member> findAllByNameContaining(@Param("name") String name, Pageable pageable);
+
+    @Query("SELECT m FROM Member m WHERE m.nickname LIKE %:nickname%")
+    Page<Member> findAllByNicknameContaining(@Param("nickname") String nickname, Pageable pageable);
 
     Optional<Member> findByNickname(String nickname);
 
-    // 닉네임에 특정 문자열 포함하는 유저 리스트 조회
+    // 닉네임에 특정 문자열 포함하는 유저 리스트 조회 (List 버전)
     List<Member> findByNicknameContaining(String nickname);
 
     @Query("""

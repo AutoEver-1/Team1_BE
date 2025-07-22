@@ -18,7 +18,9 @@ import autoever_2st.project.user.dto.response.UserProfileDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -33,6 +35,16 @@ public class UserProfileController {
     private final FollowService followService;
     private final UserProfileService userProfileService;
     private final MovieService movieService;
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getMyInfo(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 안 됨");
+        }
+        return ResponseEntity.ok().body(Map.of(
+                "username", userDetails.getUsername()
+        ));
+    }
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
@@ -82,7 +94,6 @@ public class UserProfileController {
     // 최애 영화 조회
     @GetMapping("/{memberId}/favorite-movie")
     public ApiResponse<MovieListResponseDto> getFavoriteMovies(@PathVariable Long memberId) {
-//        List<MovieDto> movieList = createMockMovieList(5);
         MovieListResponseDto responseDto = movieService.getFavoriteMovies(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
