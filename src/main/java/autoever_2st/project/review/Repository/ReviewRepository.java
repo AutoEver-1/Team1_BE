@@ -99,6 +99,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
 
     int countByMemberId(Long memberId);
+    
+    List<Review> findAllByMemberId(Long memberId);
 
     @Query(value = "SELECT COUNT(*) FROM review WHERE DATE(registed_at) = :date", nativeQuery = true)
     int countByCreatedDate(@Param("date") LocalDate date);
