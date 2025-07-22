@@ -100,7 +100,7 @@ public class MovieController {
     // 개봉예정작 받기
     @GetMapping("/ott/{ottId}/expect/release")
     public ApiResponse<OttMovieListResponseDto> getExpectedReleaseMoviesByOtt(@PathVariable Long ottId) {
-        OttMovieListResponseDto ottMovieListResponseDto = movieService.getExpectedOttMovieList();
+        OttMovieListResponseDto ottMovieListResponseDto = movieService.getExpectedOttMovieList(ottId);
 
         return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
     }
@@ -108,7 +108,7 @@ public class MovieController {
     // 최근 개봉작 받기
     @GetMapping("/ott/{ottId}/recently/release")
     public ApiResponse<OttMovieListResponseDto> getRecentlyReleaseMoviesByOtt(@PathVariable Long ottId) {
-        OttMovieListResponseDto ottMovieListResponseDto = movieService.getRecentlyOttMovieList();
+        OttMovieListResponseDto ottMovieListResponseDto = movieService.getRecentlyOttMovieList(ottId);
 
         return ApiResponse.success(ottMovieListResponseDto, HttpStatus.OK.value());
     }

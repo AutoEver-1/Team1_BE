@@ -11,7 +11,6 @@ public interface MovieGenreMatchRepositoryCustom {
      * - 장르 정보
      * - 포스터 이미지
      * - 감독 정보
-     * 를 한 번에 조회하여 N+1 문제 방지
      */
     List<MovieDto> findMoviesByGenreId(Long genreId);
 } 

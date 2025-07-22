@@ -39,9 +39,9 @@ public interface MovieService {
 //
 //        public RecentlyReleaseMovieListDto getRecentlyReleaseMovies();
 
-        public OttMovieListResponseDto getExpectedOttMovieList();
+        public OttMovieListResponseDto getExpectedOttMovieList(Long ottId);
 
-        public OttMovieListResponseDto getRecentlyOttMovieList();
+        public OttMovieListResponseDto getRecentlyOttMovieList(Long ottId);
 
         public List<GenreDto> getGenreList();
 

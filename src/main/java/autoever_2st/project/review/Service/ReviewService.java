@@ -175,6 +175,7 @@ public class ReviewService {
         reviewRepository.delete(review); // Cascade로 reviewDetail도 삭제됨
     }
 
+    @Transactional
     public List<ReviewDto> getReviewsByMovieId(Long movieId,  Long loginMemberId) {
         List<Review> reviews = reviewRepository.findAllByMovieId(movieId);
 

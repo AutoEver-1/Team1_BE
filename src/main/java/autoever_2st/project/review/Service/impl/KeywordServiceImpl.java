@@ -124,6 +124,7 @@ public class KeywordServiceImpl implements KeywordService {
     }
 
     @Override
+    @Transactional
     public Map<Long, List<String>> getReviewKeywordsBatch(List<Long> reviewIds) {
         List<ReviewKeyword> reviewKeywords = reviewKeywordRepository.findByReviewIdIn(reviewIds);
         

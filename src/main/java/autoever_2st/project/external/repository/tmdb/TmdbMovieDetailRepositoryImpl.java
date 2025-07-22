@@ -1,5 +1,6 @@
 package autoever_2st.project.external.repository.tmdb;
 
+import autoever_2st.project.external.entity.kofic.QKoficMovieDetail;
 import autoever_2st.project.external.entity.tmdb.*;
 import autoever_2st.project.movie.dto.DirectorDto;
 import autoever_2st.project.movie.dto.MovieDto;
@@ -7,24 +8,21 @@ import autoever_2st.project.movie.entity.QMovie;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.StringExpression;
+import com.querydsl.jpa.JPAExpressions;
+import com.querydsl.jpa.JPQLQuery;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import com.querydsl.jpa.JPQLQuery;
-import com.querydsl.jpa.JPAExpressions;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.Arrays;
-import java.util.ArrayList;
+import java.time.LocalDate;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -33,6 +31,7 @@ import java.util.stream.Collectors;
  */
 @Repository
 @RequiredArgsConstructor
+@Slf4j
 public class TmdbMovieDetailRepositoryImpl implements TmdbMovieDetailRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
@@ -76,67 +75,319 @@ public class TmdbMovieDetailRepositoryImpl implements TmdbMovieDetailRepositoryC
     }
 
     @Override
-    public List<TmdbMovieDetail> findUpcomingMoviesByOttPlatformOrderByPopularityDesc(Long ottPlatformId, Date today, Pageable pageable) {
+    public List<MovieDto> findUpcomingMoviesByOttPlatformOptimized(Long ottPlatformId, Date today, Pageable pageable) {
         QTmdbMovieDetail movie = QTmdbMovieDetail.tmdbMovieDetail;
         QTmdbMovieDetailOtt movieOtt = QTmdbMovieDetailOtt.tmdbMovieDetailOtt;
         QOttPlatform ottPlatform = QOttPlatform.ottPlatform;
-        QTmdbMovieImages movieImages = QTmdbMovieImages.tmdbMovieImages;
         QMovieGenreMatch genreMatch = QMovieGenreMatch.movieGenreMatch;
         QMovieGenre genre = QMovieGenre.movieGenre;
+        QTmdbMovieImages movieImages = QTmdbMovieImages.tmdbMovieImages;
         QTmdbMovieCrew movieCrew = QTmdbMovieCrew.tmdbMovieCrew;
         QTmdbMember member = QTmdbMember.tmdbMember;
+        QMovie movieEntity = QMovie.movie;
 
-        return queryFactory
-                .selectDistinct(movie)
+        // 기본 영화 정보 조회
+        List<Tuple> results = queryFactory
+                .select(
+                        movie.isAdult,
+                        movie.releaseDate,
+                        movie.voteAverage,
+                        movie.title,
+                        movieEntity.id,
+                        movie.popularity,
+                        movie.id
+                )
                 .from(movie)
                 .join(movie.tmdbMovieDetailOtt, movieOtt)
                 .join(movieOtt.ottPlatform, ottPlatform)
-                .leftJoin(movie.tmdbMovieImages, movieImages).fetchJoin()
-                .leftJoin(movie.movieGenreMatch, genreMatch).fetchJoin()
-                .leftJoin(genreMatch.movieGenre, genre).fetchJoin()
-                .leftJoin(movie.tmdbMovieCrew, movieCrew).fetchJoin()
-                .leftJoin(movieCrew.tmdbMember, member).fetchJoin()
+                .join(movieEntity).on(movieEntity.tmdbMovieDetail.eq(movie))
                 .where(
-                    ottPlatform.id.eq(ottPlatformId),
-                    movie.releaseDate.after(today),
-                    movieCrew.job.eq("Director")
+                        ottPlatform.id.eq(ottPlatformId)
+                        .and(movie.releaseDate.after(today))
                 )
+                .groupBy(movie.id, movieEntity.id)
                 .orderBy(movie.popularity.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
+
+        if (results.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 영화 ID 목록 추출
+        List<Long> movieDetailIds = results.stream()
+                .map(tuple -> tuple.get(movie.id))
+                .collect(Collectors.toList());
+
+        // 장르 정보 조회
+        Map<Long, List<String>> genreMap = new HashMap<>();
+        List<Tuple> genreResults = queryFactory
+                .select(genreMatch.tmdbMovieDetail.id, genre.name)
+                .from(genreMatch)
+                .join(genreMatch.movieGenre, genre)
+                .where(genreMatch.tmdbMovieDetail.id.in(movieDetailIds))
+                .fetch();
+
+        for (Tuple genreResult : genreResults) {
+            Long movieId = genreResult.get(genreMatch.tmdbMovieDetail.id);
+            String genreName = genreResult.get(genre.name);
+            genreMap.computeIfAbsent(movieId, k -> new ArrayList<>()).add(genreName);
+        }
+
+        // 포스터 이미지 조회 (한 영화당 하나씩만)
+        Map<Long, String> posterMap = new HashMap<>();
+        QTmdbMovieImages subMovieImages = new QTmdbMovieImages("subMovieImages");
+        List<Tuple> posterResults = queryFactory
+                .select(
+                        movieImages.tmdbMovieDetail.id,
+                        movieImages.baseUrl,
+                        movieImages.imageUrl
+                )
+                .from(movieImages)
+                .where(
+                        movieImages.tmdbMovieDetail.id.in(movieDetailIds)
+                        .and(movieImages.imageType.eq(ImageType.POSTER))
+                        .and(movieImages.iso6391.eq("en"))
+                        .and(movieImages.ratio.between(0.6, 0.7))
+                        .and(movieImages.id.eq(
+                                JPAExpressions
+                                        .select(subMovieImages.id.min())
+                                        .from(subMovieImages)
+                                        .where(subMovieImages.tmdbMovieDetail.id.eq(movieImages.tmdbMovieDetail.id)
+                                                .and(subMovieImages.imageType.eq(ImageType.POSTER))
+                                                .and(subMovieImages.iso6391.eq("en"))
+                                                .and(subMovieImages.ratio.between(0.6, 0.7)))
+                        ))
+                )
+                .fetch();
+
+        for (Tuple posterResult : posterResults) {
+            Long movieId = posterResult.get(movieImages.tmdbMovieDetail.id);
+            String baseUrl = posterResult.get(movieImages.baseUrl);
+            String imageUrl = posterResult.get(movieImages.imageUrl);
+            if (baseUrl != null && imageUrl != null) {
+                posterMap.put(movieId, baseUrl + imageUrl);
+            }
+        }
+
+        // 감독 정보 조회
+        Map<Long, List<DirectorDto>> directorMap = new HashMap<>();
+        List<Tuple> directorResults = queryFactory
+                .select(
+                        movieCrew.tmdbMovieDetail.id,
+                        member.name,
+                        member.originalName,
+                        member.tmdbId,
+                        member.gender,
+                        member.profilePath
+                )
+                .from(movieCrew)
+                .join(movieCrew.tmdbMember, member)
+                .where(
+                        movieCrew.tmdbMovieDetail.id.in(movieDetailIds)
+                        .and(movieCrew.job.eq("Director"))
+                )
+                .fetch();
+
+        for (Tuple directorResult : directorResults) {
+            Long movieId = directorResult.get(movieCrew.tmdbMovieDetail.id);
+            
+            String name = directorResult.get(member.name);
+            String originalName = directorResult.get(member.originalName);
+            Long personId = directorResult.get(member.tmdbId);
+            String gender = directorResult.get(member.gender) != null ? 
+                directorResult.get(member.gender).toString().toLowerCase() : "unknown";
+            String profilePath = directorResult.get(member.profilePath);
+            
+            DirectorDto directorDto = new DirectorDto(gender, personId, name, originalName, profilePath);
+            directorMap.computeIfAbsent(movieId, k -> new ArrayList<>()).add(directorDto);
+        }
+
+        // 결과 조합
+        List<MovieDto> movieDtos = new ArrayList<>();
+        for (Tuple result : results) {
+            Long movieDetailId = result.get(movie.id);
+            
+            MovieDto movieDto = new MovieDto();
+            movieDto.setIsAdult(result.get(movie.isAdult));
+            movieDto.setReleaseDate(result.get(movie.releaseDate));
+            movieDto.setTmdbScore(result.get(movie.voteAverage));
+            movieDto.setTitle(result.get(movie.title));
+            movieDto.setMovieId(result.get(movieEntity.id));
+            movieDto.setPopularity(result.get(movie.popularity));
+            
+            // 장르 설정
+            movieDto.setGenre(genreMap.getOrDefault(movieDetailId, Collections.emptyList()));
+            
+            // 포스터 설정
+            movieDto.setPosterPath(posterMap.get(movieDetailId));
+            
+            // 감독 설정
+            movieDto.setDirector(directorMap.getOrDefault(movieDetailId, Collections.emptyList()));
+            
+            movieDtos.add(movieDto);
+        }
+
+        return movieDtos;
     }
 
     @Override
-    public List<TmdbMovieDetail> findRecentlyReleasedMoviesByOttPlatformOrderByPopularityDesc(Long ottPlatformId, Date startDate, Date endDate, Pageable pageable) {
+    public List<MovieDto> findRecentlyReleasedMoviesByOttPlatformOptimized(Long ottPlatformId, Date startDate, Date endDate, Pageable pageable) {
         QTmdbMovieDetail movie = QTmdbMovieDetail.tmdbMovieDetail;
         QTmdbMovieDetailOtt movieOtt = QTmdbMovieDetailOtt.tmdbMovieDetailOtt;
         QOttPlatform ottPlatform = QOttPlatform.ottPlatform;
-        QTmdbMovieImages movieImages = QTmdbMovieImages.tmdbMovieImages;
         QMovieGenreMatch genreMatch = QMovieGenreMatch.movieGenreMatch;
         QMovieGenre genre = QMovieGenre.movieGenre;
+        QTmdbMovieImages movieImages = QTmdbMovieImages.tmdbMovieImages;
         QTmdbMovieCrew movieCrew = QTmdbMovieCrew.tmdbMovieCrew;
         QTmdbMember member = QTmdbMember.tmdbMember;
+        QMovie movieEntity = QMovie.movie;
 
-        return queryFactory
-                .selectDistinct(movie)
+        // 기본 영화 정보 조회
+        List<Tuple> results = queryFactory
+                .select(
+                        movie.isAdult,
+                        movie.releaseDate,
+                        movie.voteAverage,
+                        movie.title,
+                        movieEntity.id,
+                        movie.popularity,
+                        movie.id
+                )
                 .from(movie)
                 .join(movie.tmdbMovieDetailOtt, movieOtt)
                 .join(movieOtt.ottPlatform, ottPlatform)
-                .leftJoin(movie.tmdbMovieImages, movieImages).fetchJoin()
-                .leftJoin(movie.movieGenreMatch, genreMatch).fetchJoin()
-                .leftJoin(genreMatch.movieGenre, genre).fetchJoin()
-                .leftJoin(movie.tmdbMovieCrew, movieCrew).fetchJoin()
-                .leftJoin(movieCrew.tmdbMember, member).fetchJoin()
+                .join(movieEntity).on(movieEntity.tmdbMovieDetail.eq(movie))
                 .where(
-                    ottPlatform.id.eq(ottPlatformId),
-                    movie.releaseDate.between(startDate, endDate),
-                    movieCrew.job.eq("Director")
+                        ottPlatform.id.eq(ottPlatformId)
+                        .and(movie.releaseDate.between(startDate, endDate))
                 )
+                .groupBy(movie.id, movieEntity.id)
                 .orderBy(movie.popularity.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
+
+        if (results.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 영화 ID 목록 추출
+        List<Long> movieDetailIds = results.stream()
+                .map(tuple -> tuple.get(movie.id))
+                .collect(Collectors.toList());
+
+        // 장르 정보 조회
+        Map<Long, List<String>> genreMap = new HashMap<>();
+        List<Tuple> genreResults = queryFactory
+                .select(genreMatch.tmdbMovieDetail.id, genre.name)
+                .from(genreMatch)
+                .join(genreMatch.movieGenre, genre)
+                .where(genreMatch.tmdbMovieDetail.id.in(movieDetailIds))
+                .fetch();
+
+        for (Tuple genreResult : genreResults) {
+            Long movieId = genreResult.get(genreMatch.tmdbMovieDetail.id);
+            String genreName = genreResult.get(genre.name);
+            genreMap.computeIfAbsent(movieId, k -> new ArrayList<>()).add(genreName);
+        }
+
+        // 포스터 이미지 조회 (한 영화당 하나씩만)
+        Map<Long, String> posterMap = new HashMap<>();
+        QTmdbMovieImages subMovieImages = new QTmdbMovieImages("subMovieImages");
+        List<Tuple> posterResults = queryFactory
+                .select(
+                        movieImages.tmdbMovieDetail.id,
+                        movieImages.baseUrl,
+                        movieImages.imageUrl
+                )
+                .from(movieImages)
+                .where(
+                        movieImages.tmdbMovieDetail.id.in(movieDetailIds)
+                        .and(movieImages.imageType.eq(ImageType.POSTER))
+                        .and(movieImages.iso6391.eq("en"))
+                        .and(movieImages.ratio.between(0.6, 0.7))
+                        .and(movieImages.id.eq(
+                                JPAExpressions
+                                        .select(subMovieImages.id.min())
+                                        .from(subMovieImages)
+                                        .where(subMovieImages.tmdbMovieDetail.id.eq(movieImages.tmdbMovieDetail.id)
+                                                .and(subMovieImages.imageType.eq(ImageType.POSTER))
+                                                .and(subMovieImages.iso6391.eq("en"))
+                                                .and(subMovieImages.ratio.between(0.6, 0.7)))
+                        ))
+                )
+                .fetch();
+
+        for (Tuple posterResult : posterResults) {
+            Long movieId = posterResult.get(movieImages.tmdbMovieDetail.id);
+            String baseUrl = posterResult.get(movieImages.baseUrl);
+            String imageUrl = posterResult.get(movieImages.imageUrl);
+            if (baseUrl != null && imageUrl != null) {
+                posterMap.put(movieId, baseUrl + imageUrl);
+            }
+        }
+
+        // 감독 정보 조회
+        Map<Long, List<DirectorDto>> directorMap = new HashMap<>();
+        List<Tuple> directorResults = queryFactory
+                .select(
+                        movieCrew.tmdbMovieDetail.id,
+                        member.name,
+                        member.originalName,
+                        member.tmdbId,
+                        member.gender,
+                        member.profilePath
+                )
+                .from(movieCrew)
+                .join(movieCrew.tmdbMember, member)
+                .where(
+                        movieCrew.tmdbMovieDetail.id.in(movieDetailIds)
+                        .and(movieCrew.job.eq("Director"))
+                )
+                .fetch();
+
+        for (Tuple directorResult : directorResults) {
+            Long movieId = directorResult.get(movieCrew.tmdbMovieDetail.id);
+            
+            String name = directorResult.get(member.name);
+            String originalName = directorResult.get(member.originalName);
+            Long personId = directorResult.get(member.tmdbId);
+            String gender = directorResult.get(member.gender) != null ? 
+                directorResult.get(member.gender).toString().toLowerCase() : "unknown";
+            String profilePath = directorResult.get(member.profilePath);
+            
+            DirectorDto directorDto = new DirectorDto(gender, personId, name, originalName, profilePath);
+            directorMap.computeIfAbsent(movieId, k -> new ArrayList<>()).add(directorDto);
+        }
+
+        // 결과 조합
+        List<MovieDto> movieDtos = new ArrayList<>();
+        for (Tuple result : results) {
+            Long movieDetailId = result.get(movie.id);
+            
+            MovieDto movieDto = new MovieDto();
+            movieDto.setIsAdult(result.get(movie.isAdult));
+            movieDto.setReleaseDate(result.get(movie.releaseDate));
+            movieDto.setTmdbScore(result.get(movie.voteAverage));
+            movieDto.setTitle(result.get(movie.title));
+            movieDto.setMovieId(result.get(movieEntity.id));
+            movieDto.setPopularity(result.get(movie.popularity));
+            
+            // 장르 설정
+            movieDto.setGenre(genreMap.getOrDefault(movieDetailId, Collections.emptyList()));
+            
+            // 포스터 설정
+            movieDto.setPosterPath(posterMap.get(movieDetailId));
+            
+            // 감독 설정
+            movieDto.setDirector(directorMap.getOrDefault(movieDetailId, Collections.emptyList()));
+            
+            movieDtos.add(movieDto);
+        }
+
+        return movieDtos;
     }
 
     @Override
@@ -570,6 +821,68 @@ public class TmdbMovieDetailRepositoryImpl implements TmdbMovieDetailRepositoryC
                 .selectFrom(movie)
                 .join(movie.movie, movieEntity)
                 .where(movie.movie.isNotNull())
+                .fetch();
+    }
+
+    @Override
+    public List<TmdbMovieDetail> findUpcomingMoviesByOttPlatformOrderByPopularityDesc(Long ottPlatformId, Date today, Pageable pageable) {
+        QTmdbMovieDetail movie = QTmdbMovieDetail.tmdbMovieDetail;
+        QTmdbMovieDetailOtt movieOtt = QTmdbMovieDetailOtt.tmdbMovieDetailOtt;
+        QOttPlatform ottPlatform = QOttPlatform.ottPlatform;
+        QTmdbMovieImages movieImages = QTmdbMovieImages.tmdbMovieImages;
+        QMovieGenreMatch genreMatch = QMovieGenreMatch.movieGenreMatch;
+        QMovieGenre genre = QMovieGenre.movieGenre;
+        QTmdbMovieCrew movieCrew = QTmdbMovieCrew.tmdbMovieCrew;
+        QTmdbMember member = QTmdbMember.tmdbMember;
+
+        return queryFactory
+                .selectDistinct(movie)
+                .from(movie)
+                .join(movie.tmdbMovieDetailOtt, movieOtt)
+                .join(movieOtt.ottPlatform, ottPlatform)
+                .leftJoin(movie.tmdbMovieImages, movieImages).fetchJoin()
+                .leftJoin(movie.movieGenreMatch, genreMatch).fetchJoin()
+                .leftJoin(genreMatch.movieGenre, genre).fetchJoin()
+                .leftJoin(movie.tmdbMovieCrew, movieCrew).fetchJoin()
+                .leftJoin(movieCrew.tmdbMember, member).fetchJoin()
+                .where(
+                    ottPlatform.id.eq(ottPlatformId),
+                    movie.releaseDate.after(today)
+                )
+                .orderBy(movie.popularity.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+    }
+
+    @Override
+    public List<TmdbMovieDetail> findRecentlyReleasedMoviesByOttPlatformOrderByPopularityDesc(Long ottPlatformId, Date startDate, Date endDate, Pageable pageable) {
+        QTmdbMovieDetail movie = QTmdbMovieDetail.tmdbMovieDetail;
+        QTmdbMovieDetailOtt movieOtt = QTmdbMovieDetailOtt.tmdbMovieDetailOtt;
+        QOttPlatform ottPlatform = QOttPlatform.ottPlatform;
+        QTmdbMovieImages movieImages = QTmdbMovieImages.tmdbMovieImages;
+        QMovieGenreMatch genreMatch = QMovieGenreMatch.movieGenreMatch;
+        QMovieGenre genre = QMovieGenre.movieGenre;
+        QTmdbMovieCrew movieCrew = QTmdbMovieCrew.tmdbMovieCrew;
+        QTmdbMember member = QTmdbMember.tmdbMember;
+
+        return queryFactory
+                .selectDistinct(movie)
+                .from(movie)
+                .join(movie.tmdbMovieDetailOtt, movieOtt)
+                .join(movieOtt.ottPlatform, ottPlatform)
+                .leftJoin(movie.tmdbMovieImages, movieImages).fetchJoin()
+                .leftJoin(movie.movieGenreMatch, genreMatch).fetchJoin()
+                .leftJoin(genreMatch.movieGenre, genre).fetchJoin()
+                .leftJoin(movie.tmdbMovieCrew, movieCrew).fetchJoin()
+                .leftJoin(movieCrew.tmdbMember, member).fetchJoin()
+                .where(
+                    ottPlatform.id.eq(ottPlatformId),
+                    movie.releaseDate.between(startDate, endDate)
+                )
+                .orderBy(movie.popularity.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
                 .fetch();
     }
 
