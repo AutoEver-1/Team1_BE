@@ -40,16 +40,33 @@ public class UserService {
     }
 
 
-    // 닉네임 난수 발생기
-    private String generateRandomNumericNickname(int length) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < length; i++) {
-            int digit = (int) (Math.random() * 10);  // 0~9 랜덤 숫자
-            sb.append(digit);
-        }
-        return sb.toString();
-    }
+    // 닉네임 발생기
+    private static final String[] KOREAN_ADJECTIVES = {
+            "방실", "말랑", "쫀득", "복슬", "보들", "졸린", "싱글", "반짝", "동글", "몽실",
+            "소복", "몽글", "새근", "토실", "말똥", "느긋", "포근", "보송", "차분", "아늑",
+            "살랑", "사뿐", "살포시", "재잘", "뽀짝", "수줍", "따끈", "달달", "귀염", "앙증",
+            "싱긋", "쫑긋", "찰랑", "꼬물", "말랑이", "사르르", "따박", "콩닥", "느릿", "몽환",
+            "도도", "몽환적인", "샤방", "반짝반짝", "순둥", "몽이", "몽자", "토글토글", "비틀비틀", "구름"
+    };
 
+    private static final String[] KOREAN_NOUNS = {
+            "토끼", "곰돌이", "냥냥이", "멍멍이", "다람쥐", "콩떡", "푸딩", "햄찌", "치치", "복숭아",
+            "쫀득이", "젤리", "솜사탕", "마카롱", "호빵", "방울이", "우주쥐", "오리", "햄토리", "도치",
+            "우산", "우유", "달고나", "꼬깔콘", "솜뭉치", "파인애플", "피카츄", "뚜뚜", "몽이", "몽자",
+            "구르미", "두더지", "이불", "쿠션", "펭귄", "앵무", "몽돌", "소라", "구름빵", "빵빵이",
+            "낙타", "나뭇잎", "단무지", "모찌", "달토끼", "버섯", "미역", "문어", "오징어", "라면"
+    };
+
+    private String generateUniqueKoreanNickname() {
+        String nickname;
+        do {
+            String adjective = KOREAN_ADJECTIVES[(int) (Math.random() * KOREAN_ADJECTIVES.length)];
+            String noun = KOREAN_NOUNS[(int) (Math.random() * KOREAN_NOUNS.length)];
+            int number = (int) (Math.random() * 900 + 100); // 100~999
+            nickname = adjective + noun + number;
+        } while (userRepository.existsByNickname(nickname));
+        return nickname;
+    }
 
     // 회원가입
     public void signup(SignupRequestDto signupRequestDto) {
@@ -63,7 +80,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("USER Role이 DB에 없음"));
 
 
-        String numericNickname = generateRandomNumericNickname(5);
+        String generatedNickname = generateUniqueKoreanNickname();
 
         // Member 엔티티 생성
         Member member = Member.builder()
@@ -73,7 +90,7 @@ public class UserService {
                 .gender(signupRequestDto.getGender())
                 .birth_date(Date.from(LocalDate.parse(signupRequestDto.getBirth_date()).atStartOfDay(ZoneId.systemDefault()).toInstant()))
                 .role(userRole)   // 여기서 기본값처럼 넣어줌
-                .nickname(signupRequestDto.getEmail() + "_" + numericNickname)
+                .nickname(generatedNickname)
                 .profile_img_url("1")
                 .is_delete(false)
                 .is_banned(false)
