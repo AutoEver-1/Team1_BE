@@ -390,7 +390,6 @@ public class ReviewService {
         Movie movie = review.getMovie();
         TmdbMovieDetail detail = movie.getTmdbMovieDetail();
 
-
 //        TmdbMovieImages image = detail.getTmdbMovieImages().isEmpty() ? null : detail.getTmdbMovieImages().get(0);
 
         TmdbMovieImages image = null;
