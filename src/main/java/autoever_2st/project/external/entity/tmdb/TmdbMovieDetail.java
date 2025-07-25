@@ -5,13 +5,16 @@ import autoever_2st.project.movie.entity.Movie;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
-@Table(name = "tmdb_movie_detail")
+@Table(name = "tmdb_movie_detail", 
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_id"))
 @Getter
 @NoArgsConstructor
 public class TmdbMovieDetail extends TimeStamp {
@@ -22,7 +25,7 @@ public class TmdbMovieDetail extends TimeStamp {
     @Column(name = "is_adult", nullable = false)
     private Boolean isAdult;
 
-    @Column(name = "tmdb_id", nullable = false)
+    @Column(name = "tmdb_id", nullable = false, unique = true)
     private Long tmdbId;
 
     @Column(name = "title", nullable = false)
@@ -34,14 +37,14 @@ public class TmdbMovieDetail extends TimeStamp {
     @Column(name = "original_language")
     private String originalLanguage;
 
-    @Column(name = "overview")
+    @Column(name = "overview" , columnDefinition = "TEXT" , nullable = true)
     private String overview;
 
     @Column(name = "status")
     private String status;
 
     @Column(name = "release_date")
-    private LocalDate releaseDate;
+    private Date releaseDate;
 
     @Column(name = "runtime")
     private Integer runtime;
@@ -61,23 +64,37 @@ public class TmdbMovieDetail extends TimeStamp {
     @Column(name = "media_type")
     private String mediaType;
 
+    @Transient
+    private List<Integer> genreIds;
+
     @OneToOne(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "movie_id")
     private Movie movie;
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new HashSet<>();
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieImages> tmdbMovieImages = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieImages> tmdbMovieImages = new HashSet<>();
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<TmdbMovieVideo> tmdbMovieVideo = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<TmdbMovieVideo> tmdbMovieVideo = new HashSet<>();
 
     @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<MovieGenreMatch> movieGenreMatch = new ArrayList<>();
+    @BatchSize(size = 100)
+    private Set<MovieGenreMatch> movieGenreMatch = new HashSet<>();
 
-    public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, LocalDate releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 100)
+    private Set<TmdbMovieCast> tmdbMovieCast = new HashSet<>();
+
+    @OneToMany(mappedBy = "tmdbMovieDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 100)
+    private Set<TmdbMovieCrew> tmdbMovieCrew = new HashSet<>();
+
+    public TmdbMovieDetail(Boolean isAdult, Long tmdbId, String title, String originalTitle, String originalLanguage, String overview, String status, Date releaseDate, Integer runtime, Boolean video, Double voteAverage, Long voteCount, Double popularity, String mediaType) {
         this.isAdult = isAdult;
         this.tmdbId = tmdbId;
         this.title = title;
@@ -120,6 +137,32 @@ public class TmdbMovieDetail extends TimeStamp {
         return this;
     }
 
+    public TmdbMovieDetail setGenreIds(List<Integer> genreIds) {
+        this.genreIds = genreIds;
+        return this;
+    }
 
+    public List<Integer> getGenreIds() {
+        return genreIds;
+    }
 
+    public TmdbMovieDetail addTmdbMovieCast(TmdbMovieCast tmdbMovieCast){
+        this.tmdbMovieCast.add(tmdbMovieCast);
+        return this;
+    }
+
+    public TmdbMovieDetail removeTmdbMovieCast(TmdbMovieCast tmdbMovieCast){
+        this.tmdbMovieCast.remove(tmdbMovieCast);
+        return this;
+    }
+
+    public TmdbMovieDetail addTmdbMovieCrew(TmdbMovieCrew tmdbMovieCrew){
+        this.tmdbMovieCrew.add(tmdbMovieCrew);
+        return this;
+    }
+
+    public TmdbMovieDetail removeTmdbMovieCrew(TmdbMovieCrew tmdbMovieCrew){
+        this.tmdbMovieCrew.remove(tmdbMovieCrew);
+        return this;
+    }
 }

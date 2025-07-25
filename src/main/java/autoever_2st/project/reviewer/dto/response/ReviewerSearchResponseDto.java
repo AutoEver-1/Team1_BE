@@ -1,14 +1,18 @@
 package autoever_2st.project.reviewer.dto.response;
 
+import autoever_2st.project.reviewer.dto.ReviewerDto;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @NoArgsConstructor
 @Getter
 public class ReviewerSearchResponseDto {
-    private Long memberId;
+    private List<ReviewerDto> reviewerList;
 
-    public ReviewerSearchResponseDto(Long memberId) {
-        this.memberId = memberId;
+    public ReviewerSearchResponseDto(List<ReviewerDto> reviewerList) {
+        this.reviewerList = reviewerList;
     }
 }

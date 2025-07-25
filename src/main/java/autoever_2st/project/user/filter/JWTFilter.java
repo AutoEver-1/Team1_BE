@@ -1,0 +1,91 @@
+package autoever_2st.project.user.filter;
+
+import autoever_2st.project.user.Entity.Member;
+import autoever_2st.project.user.Entity.Role;
+import autoever_2st.project.user.Entity.RoleType;
+import autoever_2st.project.user.Repository.RoleRepository;
+import autoever_2st.project.user.Repository.UserRepository;
+import autoever_2st.project.user.Service.CustomUserDetails;
+import autoever_2st.project.user.jwt.JWTUtil;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+@RequiredArgsConstructor
+public class JWTFilter extends OncePerRequestFilter {
+
+    private final JWTUtil jwtUtil;
+    private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+
+        // request에서 Authorization 헤더 찾음
+        String authorization = request.getHeader("Authorization");
+
+        // Authorization 헤더 검증
+        // Authorization 헤더가 비어있거나 "Bearer " 로 시작하지 않은 경우
+        if(authorization == null || !authorization.startsWith("Bearer ")){
+
+            System.out.println("token null");
+            // 토큰이 유효하지 않으므로 request와 response를 다음 필터로 넘겨줌
+            filterChain.doFilter(request, response);
+
+            // 메서드 종료
+            return;
+        }
+
+        // Authorization에서 Bearer 접두사 제거
+        String token = authorization.split(" ")[1];
+
+        // token 소멸 시간 검증
+        // 유효기간이 만료한 경우
+        if(jwtUtil.isExpired(token)){
+            System.out.println("token expired");
+            filterChain.doFilter(request, response);
+
+            // 메서드 종료
+            return;
+        }
+
+        // 최종적으로 token 검증 완료 => 일시적인 session 생성
+        // session에 user 정보 설정
+        String loginId = jwtUtil.getLoginId(token);
+        String roleName = jwtUtil.getRole(token);
+
+        // Role 객체 DB 조회
+        Role role = roleRepository.findByName(RoleType.valueOf(roleName))
+                .orElseThrow(() -> new RuntimeException("Role not found"));
+
+//        Member member = new Member();
+//        member.setEmail(loginId);
+//        // 매번 요청마다 DB 조회해서 password 초기화 할 필요 x => 정확한 비밀번호 넣을 필요 없음
+//        // 따라서 임시 비밀번호 설정!
+//        member.setPassword("임시 비밀번호");
+//        member.setRole(role);
+
+        // 회원 정보 DB에서 조회 (이메일 기준으로)
+        Member member = userRepository.findByEmail(loginId)
+                .orElseThrow(() -> new RuntimeException("Member not found"));
+        // UserDetails에 회원 정보 객체 담기
+        CustomUserDetails customUserDetails = new CustomUserDetails(member);
+
+        // 스프링 시큐리티 인증 토큰 생성
+        Authentication authToken = new UsernamePasswordAuthenticationToken(customUserDetails, null, customUserDetails.getAuthorities());
+
+        // 세션에 사용자 등록 => 일시적으로 user 세션 생성
+        SecurityContextHolder.getContext().setAuthentication(authToken);
+
+        // 다음 필터로 request, response 넘겨줌
+        filterChain.doFilter(request, response);
+    }
+}

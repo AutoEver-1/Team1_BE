@@ -4,69 +4,130 @@ import autoever_2st.project.common.dto.ApiResponse;
 import autoever_2st.project.movie.dto.DirectorDto;
 import autoever_2st.project.movie.dto.MovieDto;
 import autoever_2st.project.movie.dto.response.MovieListResponseDto;
+import autoever_2st.project.movie.service.MovieService;
+import autoever_2st.project.review.Service.ReviewService;
+import autoever_2st.project.review.dto.request.UserReviewListResponseDto;
+import autoever_2st.project.user.Service.CustomUserDetails;
+import autoever_2st.project.user.Service.FollowService;
+import autoever_2st.project.user.Service.UserProfileService;
+import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.UserFollowerDto;
 import autoever_2st.project.user.dto.UserWishlistItemDto;
+import autoever_2st.project.user.dto.request.UserUpdateRequestDto;
 import autoever_2st.project.user.dto.response.UserProfileDto;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
+@RequiredArgsConstructor
 @RestController
-@RequestMapping("/api/user")
+@RequestMapping("/user")
 public class UserProfileController {
+
+    private final ReviewService reviewService;
+    private final FollowService followService;
+    private final UserProfileService userProfileService;
+    private final MovieService movieService;
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getMyInfo(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("인증 안 됨");
+        }
+        return ResponseEntity.ok().body(Map.of(
+                "username", userDetails.getUsername()
+        ));
+    }
 
     // 유저 정보 조회
     @GetMapping("/{memberId}")
-    public ApiResponse<UserProfileDto> getUserProfile(@PathVariable Long memberId) {
-        UserProfileDto userProfile = createMockUserProfile(memberId);
+    public ApiResponse<UserProfileDto> getUserProfile(@AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long memberId) {
+
+        Long viewerId = userDetails.getMember().getId();  // 로그인한 사용자 ID
+        //로그인 안 한 경우도 고려해서 볼 수 있게 해야함
+        UserProfileDto userProfile = userProfileService.getUserProfile(viewerId, memberId);
         return ApiResponse.success(userProfile, HttpStatus.OK.value());
     }
 
-    // 유저 팔로우
+    // 유저 팔로우  //memberId를 팔로우
     @PostMapping("/{memberId}/follow")
-    public ApiResponse<Void> followUser(@PathVariable Long memberId) {
-        // Mock implementation
+    public ApiResponse<Void> follow(@AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long memberId) {
+        Long myId = userDetails.getMember().getId();
+        followService.follow(myId, memberId);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // 유저 팔로우 취소
     @DeleteMapping("/{memberId}/follow")
-    public ApiResponse<Void> unfollowUser(@PathVariable Long memberId) {
-        // Mock implementation
+    public ApiResponse<Void> unfollow(@AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long memberId) {
+        Long myId = userDetails.getMember().getId();
+        followService.unfollow(myId, memberId);
         return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // 최근 본 영화 조회
     @GetMapping("/{memberId}/recent-movie")
-    public ApiResponse<MovieListResponseDto> getRecentMovies(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+    public ApiResponse<MovieListResponseDto> getRecentMovies(@PathVariable Long memberId,
+                                                             @RequestParam(defaultValue = "0") int page,
+                                                             @RequestParam(defaultValue = "6") int size
+    ) {
+        PageRequest pageable = PageRequest.of(page, size);
+        MovieListResponseDto responseDto = movieService.getRecentMovies(memberId, pageable);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
     // 위시리스트 조회
     @GetMapping("/{memberId}/wishlist")
     public ApiResponse<MovieListResponseDto> getWishlist(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        //PageRequest pageable = PageRequest.of(page, size);
+        MovieListResponseDto responseDto = movieService.getWishlist(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
     // 최애 영화 조회
     @GetMapping("/{memberId}/favorite-movie")
     public ApiResponse<MovieListResponseDto> getFavoriteMovies(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        MovieListResponseDto responseDto = movieService.getFavoriteMovies(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
     }
 
     // 비선호 영화 조회
     @GetMapping("/{memberId}/dislike-movie")
     public ApiResponse<MovieListResponseDto> getDislikedMovies(@PathVariable Long memberId) {
-        List<MovieDto> movieList = createMockMovieList(5);
-        MovieListResponseDto responseDto = new MovieListResponseDto(movieList);
+        //List<MovieDto> movieList = createMockMovieList(5);
+        MovieListResponseDto responseDto = movieService.getDislikedMovies(memberId);
         return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    //유저별 전체 영화 리뷰 조회
+    @GetMapping("/{memberId}/reviews")
+    public ApiResponse<UserReviewListResponseDto> getUserReviews(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @PathVariable Long memberId) {
+        Long viewerId = userDetails.getMember().getId();  // 로그인한 사용자 ID
+        UserReviewListResponseDto responseDto = reviewService.getUserReviews(memberId, viewerId);
+        return ApiResponse.success(responseDto, HttpStatus.OK.value());
+    }
+
+    @PatchMapping("/{memberId}")
+    public ApiResponse<Void> updateUser(
+            @PathVariable Long memberId,
+            @RequestBody UserUpdateRequestDto request,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        if (!memberId.equals(userDetails.getMember().getId())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "본인만 정보를 수정할 수 있습니다.");
+        }
+
+        userProfileService.updateUserInfo(memberId, request);
+        return ApiResponse.success(null, HttpStatus.OK.value());
     }
 
     // Helper method to create mock user profile
@@ -163,7 +224,7 @@ public class UserProfileController {
                     (long) i,
                     "Director Name " + i,
                     "Original Director Name " + i,
-                    8.5 + (i * 0.1),
+                   // 8.5 + (i * 0.1),
                     "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg"
             );
             

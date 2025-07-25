@@ -9,7 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ott_platform")
+@Table(name = "ott_platform",
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_ott_id"))
 @Getter
 @NoArgsConstructor
 public class OttPlatform extends TimeStamp {
@@ -18,18 +19,22 @@ public class OttPlatform extends TimeStamp {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tmdb_ott_id")
+    @Column(name = "tmdb_ott_id", unique = true)
     private Long tmdbOttId;
 
     @Column(name = "name")
     private String name;
 
+    @Column(name = "logo_path")
+    private String logoPath;
+
     @OneToMany(mappedBy = "ottPlatform", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TmdbMovieDetailOtt> tmdbMovieDetailOtt = new ArrayList<>();
 
-    public OttPlatform(Long tmdbOttId, String name) {
+    public OttPlatform(Long tmdbOttId, String name, String logoPath) {
         this.tmdbOttId = tmdbOttId;
         this.name = name;
+        this.logoPath = logoPath;
     }
     public OttPlatform addTmdbMovieDetailOtt(TmdbMovieDetailOtt tmdbMovieDetailOtt){
         this.tmdbMovieDetailOtt.add(tmdbMovieDetailOtt);

@@ -1,10 +1,13 @@
 package autoever_2st.project.review.dto.request;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+@Builder
 @NoArgsConstructor
-@Getter
+@Getter @Setter
 public class ReviewRequestDto {
     private Long memberId;
     private String context;
@@ -17,4 +20,5 @@ public class ReviewRequestDto {
         this.rating = rating;
         this.movieId = movieId;
     }
+
 }

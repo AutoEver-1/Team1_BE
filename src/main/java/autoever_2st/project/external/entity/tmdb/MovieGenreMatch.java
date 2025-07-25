@@ -6,7 +6,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "movie_genre_match")
+@Table(name = "movie_genre_match",
+        indexes = {
+                @Index(name = "idx_movie_genre_match__movie_genre_id", columnList = "movie_genre_id"),
+                @Index(name = "idx_movie_genre_match__tmdb_movie_detail_id", columnList = "tmdb_movie_detail_id")
+        })
 @Getter
 @NoArgsConstructor
 public class MovieGenreMatch extends TimeStamp {

@@ -12,7 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "movie")
+@Table(name = "movie",
+       uniqueConstraints = @UniqueConstraint(columnNames = "tmdb_movie_detail_id"))
 @Getter
 @NoArgsConstructor
 public class Movie extends TimeStamp {
@@ -22,7 +23,7 @@ public class Movie extends TimeStamp {
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tmdb_movie_detail_id")
+    @JoinColumn(name = "tmdb_movie_detail_id", unique = true)
     private TmdbMovieDetail tmdbMovieDetail;
 
     @OneToOne(fetch = FetchType.LAZY)

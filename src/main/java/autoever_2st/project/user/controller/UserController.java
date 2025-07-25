@@ -1,36 +1,50 @@
 package autoever_2st.project.user.controller;
 
 import autoever_2st.project.common.dto.ApiResponse;
+import autoever_2st.project.user.Entity.JwtToken;
+import autoever_2st.project.user.Entity.Member;
+import autoever_2st.project.user.Repository.JwtTokenRepository;
+import autoever_2st.project.user.Service.UserService;
 import autoever_2st.project.user.dto.request.LoginRequestDto;
 import autoever_2st.project.user.dto.request.SignupRequestDto;
 import autoever_2st.project.user.dto.response.LoginResponseDto;
+import autoever_2st.project.user.jwt.JWTUtil;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+
+
+
 @RestController
-@RequestMapping("/api")
+@RequiredArgsConstructor
+@RequestMapping()
 public class UserController {
 
-    @PostMapping("/signup")
+    private final UserService userService;
+//    private final JwtTokenRepository jwtTokenRepository;
+
+
+    @PostMapping(value = "/signup",consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<Void> signup(@RequestBody SignupRequestDto signupRequestDto) {
+        userService.signup(signupRequestDto);
         return ApiResponse.success(null, HttpStatus.CREATED.value());
     }
 
-    @PostMapping("/login")
+    // 로그인 - JWT 토큰 반환
+//    @PostMapping("/login")
+    @PostMapping({"/login", "/api/login"})
     public ApiResponse<LoginResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
-        LoginResponseDto loginResponseDto = new LoginResponseDto(
-                1L,
-                "user123",
-                "male",
-                "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
-                "USER",
-                "John Doe"
-        );
-
-        return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());
+        try {
+            LoginResponseDto loginResponseDto = userService.loginAndIssueTokens(loginRequestDto);
+            return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());
+        } catch (RuntimeException e) {
+            return ApiResponse.fail(e.getMessage(), HttpStatus.BAD_REQUEST.value());
+        }
     }
 
-    @GetMapping("/oauth/login")
+    @GetMapping("/oauth-login")
     public ApiResponse<LoginResponseDto> oauthLogin() {
         LoginResponseDto loginResponseDto = new LoginResponseDto(
                 2L,
@@ -38,7 +52,9 @@ public class UserController {
                 "female",
                 "http://image.tmdb.org/t/p/original/eKF1sGJRrZJbfBG1KirPt1cfNd3.jpg",
                 "USER",
-                "Jane Smith"
+                "Jane Smith",
+                "asdfakjsdhflkjahsldkjfhalksjdhlfkjahlskdfas"
+
         );
 
         return ApiResponse.success(loginResponseDto, HttpStatus.OK.value());

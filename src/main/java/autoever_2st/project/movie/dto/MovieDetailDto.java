@@ -1,7 +1,6 @@
 package autoever_2st.project.movie.dto;
 
 import autoever_2st.project.external.dto.tmdb.response.movie.ProductionCompanyDto;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -37,11 +36,12 @@ public class MovieDetailDto {
     private Map<String, String> stillcutPath;
     private Integer runtime;
     private Map<String, String> languages;
+    private Map<String, Integer> keywordMap;
 
     public MovieDetailDto(Boolean isAdult, Date releaseDate, Double averageScore, String title, Long movieId,
                           List<String> genre, String backdropPath, Double tmdbScore, String country, String description, Integer reviewCount, Integer wishListCount, List<OttDto> ottList, Boolean isReviewed, Boolean isWishlisted, List<ProductionCompanyDto> productionCompanies, List<DirectorDto> director,
                           List<ActorDto> actors, String video_path, String posterPath, Map<String, String> stillcutPath,
-                          Integer runtime, Map<String, String> languages) {
+                          Integer runtime, Map<String, String> languages, Map<String, Integer> keywordMap) {
         this.isAdult = isAdult;
         this.releaseDate = releaseDate;
         this.averageScore = averageScore;
@@ -65,5 +65,6 @@ public class MovieDetailDto {
         this.stillcutPath = stillcutPath;
         this.runtime = runtime;
         this.languages = languages;
+        this.keywordMap = keywordMap;
     }
 }
